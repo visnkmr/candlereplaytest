@@ -5,6 +5,75 @@ import { CandlestickChart } from "@/components/candlestick-chart";
 import { RSIGraph } from "@/components/rsi-graph";
 import { CandlestickData, ExampleData, parseExampleData, parseYahooFinanceData, YahooFinanceResponse } from "@/data/candlestick-data";
 
+// Local storage keys
+const STORAGE_KEYS = {
+  JSON_DATA: 'candlestick_json_data',
+  PARSED_DATA: 'candlestick_parsed_data',
+  REPLAY_DATA: 'candlestick_replay_data',
+  REPLAY_INDEX: 'candlestick_replay_index',
+  IS_REPLAYING: 'candlestick_is_replaying',
+  IS_PAUSED: 'candlestick_is_paused',
+  TRANSACTIONS: 'candlestick_transactions',
+  CURRENT_POSITION: 'candlestick_current_position',
+  QUANTITY: 'candlestick_quantity',
+  SYMBOL: 'candlestick_symbol',
+  INTERVAL: 'candlestick_interval',
+  TIME_PERIOD: 'candlestick_time_period'
+};
+
+// Utility functions for localStorage
+const saveToLocalStorage = (key: string, data: unknown) => {
+  try {
+    const serialized = JSON.stringify(data);
+    localStorage.setItem(key, serialized);
+    console.log(`💾 Saved to localStorage (${key})`);
+  } catch (error) {
+    console.error(`❌ Error saving to localStorage (${key}):`, error);
+  }
+};
+
+const loadFromLocalStorage = <T = unknown>(key: string, defaultValue: T): T => {
+  try {
+    const item = localStorage.getItem(key);
+    if (item) {
+      const parsed = JSON.parse(item);
+      console.log(`📥 Loaded from localStorage (${key})`);
+      return parsed;
+    }
+    console.log(`📭 No data found in localStorage (${key}), using default`);
+    return defaultValue;
+  } catch (error) {
+    console.error(`❌ Error loading from localStorage (${key}):`, error);
+    return defaultValue;
+  }
+};
+
+const clearLocalStorage = () => {
+  try {
+    Object.values(STORAGE_KEYS).forEach(key => {
+      localStorage.removeItem(key);
+    });
+    console.log('🗑️ Cleared all localStorage data');
+  } catch (error) {
+    console.error('Error clearing localStorage:', error);
+  }
+};
+
+// Debug function to check localStorage contents (can be called from browser console)
+const debugLocalStorage = () => {
+  console.log('🔍 Debugging localStorage contents:');
+  Object.entries(STORAGE_KEYS).forEach(([name, key]) => {
+    const item = localStorage.getItem(key);
+    console.log(`${name}:`, item ? '✅ Data exists' : '❌ No data');
+  });
+};
+
+// Make debug function available globally
+if (typeof window !== 'undefined') {
+  (window as any).debugCandlestickStorage = debugLocalStorage;
+  (window as any).clearCandlestickStorage = clearLocalStorage;
+}
+
 export default function Home() {
   const [jsonData, setJsonData] = useState<string>();
   const [parsedData, setParsedData] = useState<CandlestickData[]>([]);
@@ -28,6 +97,7 @@ export default function Home() {
   const [symbol, setSymbol] = useState<string>("");
   const [interval, setInterval] = useState<string>("1m");
   const [timePeriod, setTimePeriod] = useState<string>("1d");
+  const [isRestored, setIsRestored] = useState<boolean>(false);
 
   const yahooUrl = useMemo(() => {
     // Calculate date range based on time period
@@ -61,6 +131,7 @@ export default function Home() {
     }
     
     // Calculate start date (daysAgo days ago from now)
+    // eslint-disable-next-line react-hooks/purity
     const endDate = Math.floor(Date.now() / 1000);
     const startDate = endDate - (daysAgo * 24 * 60 * 60);
     
@@ -69,6 +140,183 @@ export default function Home() {
     
     return `https://query2.finance.yahoo.com/v8/finance/chart/${symbol}?period1=${startDate}&period2=${accurateEndDate}&interval=${interval}&includePrePost=true&events=div%7Csplit%7Cearn&lang=en-US&region=US&source=cosaic`;
   }, [symbol, interval, timePeriod]);
+
+  // Save state to localStorage on changes (only after restoration is complete)
+  useEffect(() => {
+    if (isRestored) {
+      saveToLocalStorage(STORAGE_KEYS.JSON_DATA, jsonData);
+    }
+  }, [jsonData, isRestored]);
+
+  useEffect(() => {
+    if (isRestored) {
+      saveToLocalStorage(STORAGE_KEYS.PARSED_DATA, parsedData);
+    }
+  }, [parsedData, isRestored]);
+
+  useEffect(() => {
+    if (isRestored) {
+      saveToLocalStorage(STORAGE_KEYS.REPLAY_DATA, replayData);
+    }
+  }, [replayData, isRestored]);
+
+  useEffect(() => {
+    if (isRestored) {
+      saveToLocalStorage(STORAGE_KEYS.REPLAY_INDEX, replayIndex);
+    }
+  }, [replayIndex, isRestored]);
+
+  useEffect(() => {
+    if (isRestored) {
+      saveToLocalStorage(STORAGE_KEYS.IS_REPLAYING, isReplaying);
+    }
+  }, [isReplaying, isRestored]);
+
+  useEffect(() => {
+    if (isRestored) {
+      saveToLocalStorage(STORAGE_KEYS.IS_PAUSED, isPaused);
+    }
+  }, [isPaused, isRestored]);
+
+  useEffect(() => {
+    if (isRestored) {
+      saveToLocalStorage(STORAGE_KEYS.TRANSACTIONS, transactions);
+    }
+  }, [transactions, isRestored]);
+
+  useEffect(() => {
+    if (isRestored) {
+      saveToLocalStorage(STORAGE_KEYS.CURRENT_POSITION, currentPosition);
+    }
+  }, [currentPosition, isRestored]);
+
+  useEffect(() => {
+    if (isRestored) {
+      saveToLocalStorage(STORAGE_KEYS.QUANTITY, quantity);
+    }
+  }, [quantity, isRestored]);
+
+  useEffect(() => {
+    if (isRestored) {
+      saveToLocalStorage(STORAGE_KEYS.SYMBOL, symbol);
+    }
+  }, [symbol, isRestored]);
+
+  useEffect(() => {
+    if (isRestored) {
+      saveToLocalStorage(STORAGE_KEYS.INTERVAL, interval);
+    }
+  }, [interval, isRestored]);
+
+  useEffect(() => {
+    if (isRestored) {
+      saveToLocalStorage(STORAGE_KEYS.TIME_PERIOD, timePeriod);
+    }
+  }, [timePeriod, isRestored]);
+
+  // Restore state from localStorage on mount
+  useEffect(() => {
+    console.log('🔄 Restoring state from localStorage...');
+    
+    // Check if localStorage is available
+    if (typeof window === 'undefined' || !window.localStorage) {
+      console.log('❌ localStorage not available');
+      setIsRestored(true);
+      return;
+    }
+
+    try {
+      const savedJsonData = loadFromLocalStorage<string | undefined>(STORAGE_KEYS.JSON_DATA, undefined);
+      const savedParsedData = loadFromLocalStorage<CandlestickData[]>(STORAGE_KEYS.PARSED_DATA, []);
+      const savedReplayData = loadFromLocalStorage<CandlestickData[]>(STORAGE_KEYS.REPLAY_DATA, []);
+      const savedReplayIndex = loadFromLocalStorage<number>(STORAGE_KEYS.REPLAY_INDEX, 0);
+      const savedIsReplaying = loadFromLocalStorage<boolean>(STORAGE_KEYS.IS_REPLAYING, false);
+      const savedIsPaused = loadFromLocalStorage<boolean>(STORAGE_KEYS.IS_PAUSED, false);
+      const savedTransactions = loadFromLocalStorage<Array<{
+        type: 'buy' | 'sell';
+        price: number;
+        quantity: number;
+        timestamp: number;
+        index: number;
+      }>>(STORAGE_KEYS.TRANSACTIONS, []);
+      const savedCurrentPosition = loadFromLocalStorage<{ quantity: number; avgPrice: number }>(STORAGE_KEYS.CURRENT_POSITION, { quantity: 0, avgPrice: 0 });
+      const savedQuantity = loadFromLocalStorage<number>(STORAGE_KEYS.QUANTITY, 1);
+      const savedSymbol = loadFromLocalStorage<string>(STORAGE_KEYS.SYMBOL, "");
+      const savedInterval = loadFromLocalStorage<string>(STORAGE_KEYS.INTERVAL, "1m");
+      const savedTimePeriod = loadFromLocalStorage<string>(STORAGE_KEYS.TIME_PERIOD, "1d");
+
+      console.log('📊 Loaded data:', {
+        savedJsonData: !!savedJsonData,
+        savedParsedDataLength: savedParsedData.length,
+        savedReplayDataLength: savedReplayData.length,
+        savedReplayIndex,
+        savedIsReplaying,
+        savedIsPaused,
+        savedTransactionsLength: savedTransactions.length,
+        savedCurrentPosition,
+        savedQuantity,
+        savedSymbol,
+        savedInterval,
+        savedTimePeriod
+      });
+
+      // Restore state with proper checks
+      if (savedJsonData) {
+        console.log('📝 Restoring JSON data');
+        setJsonData(savedJsonData);
+      }
+      if (savedParsedData && savedParsedData.length > 0) {
+        console.log('📈 Restoring parsed data:', savedParsedData.length, 'candles');
+        setParsedData(savedParsedData);
+      }
+      if (savedReplayData && savedReplayData.length > 0) {
+        console.log('🎬 Restoring replay data:', savedReplayData.length, 'candles');
+        setReplayData(savedReplayData);
+      }
+      if (savedReplayIndex > 0) {
+        console.log('⏩ Restoring replay index:', savedReplayIndex);
+        setReplayIndex(savedReplayIndex);
+      }
+      if (savedIsReplaying) {
+        console.log('▶️ Restoring replay state: playing');
+        setIsReplaying(savedIsReplaying);
+      }
+      if (savedIsPaused) {
+        console.log('⏸️ Restoring pause state');
+        setIsPaused(savedIsPaused);
+      }
+      if (savedTransactions && savedTransactions.length > 0) {
+        console.log('💰 Restoring transactions:', savedTransactions.length);
+        setTransactions(savedTransactions);
+      }
+      if (savedCurrentPosition && (savedCurrentPosition.quantity > 0 || savedCurrentPosition.avgPrice > 0)) {
+        console.log('📊 Restoring position:', savedCurrentPosition);
+        setCurrentPosition(savedCurrentPosition);
+      }
+      if (savedQuantity && savedQuantity !== 1) {
+        console.log('🔢 Restoring quantity:', savedQuantity);
+        setQuantity(savedQuantity);
+      }
+      if (savedSymbol) {
+        console.log('🏷️ Restoring symbol:', savedSymbol);
+        setSymbol(savedSymbol);
+      }
+      if (savedInterval && savedInterval !== "1m") {
+        console.log('⏱️ Restoring interval:', savedInterval);
+        setInterval(savedInterval);
+      }
+      if (savedTimePeriod && savedTimePeriod !== "1d") {
+        console.log('📅 Restoring time period:', savedTimePeriod);
+        setTimePeriod(savedTimePeriod);
+      }
+
+      console.log('✅ State restoration complete');
+    } catch (error) {
+      console.error('❌ Error restoring state from localStorage:', error);
+    } finally {
+      setIsRestored(true);
+    }
+  }, []);
 
   // Parse initial data on mount
   // useEffect(() => {
@@ -112,7 +360,7 @@ export default function Home() {
         setParsedData(candlestickData);
         setError("");
       }
-    } catch (err) {
+    } catch {
       setError("Invalid JSON format. Please check your input.");
     }
   };
@@ -261,7 +509,14 @@ export default function Home() {
         </div>
         
         <div className="bg-white rounded-lg shadow-lg p-6 mb-6">
-          <h2 className="text-xl font-semibold text-gray-900 mb-4">Yahoo Finance Data</h2>
+          <div className="flex justify-between items-center mb-4">
+            <h2 className="text-xl font-semibold text-gray-900">Yahoo Finance Data</h2>
+            {isRestored && (
+              <div className="text-sm text-green-600 bg-green-50 px-3 py-1 rounded-full">
+                ✅ Data Restored
+              </div>
+            )}
+          </div>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Symbol</label>
@@ -362,6 +617,64 @@ export default function Home() {
                 className="px-4 py-2 bg-purple-600 text-white rounded-md hover:bg-purple-700 transition-colors"
               >
                 Download as CSV
+              </button>
+              <button
+                onClick={() => {
+                  if (confirm('Are you sure you want to clear all saved data? This will reset everything including transactions and replay progress.')) {
+                    clearLocalStorage();
+                    window.location.reload();
+                  }
+                }}
+                className="px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700 transition-colors"
+              >
+                🗑️ Clear All Data
+              </button>
+              <button
+                onClick={() => {
+                  debugLocalStorage();
+                }}
+                className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors"
+              >
+                🔍 Debug Storage
+              </button>
+              <button
+                onClick={() => {
+                  // Add sample data for testing
+                  const sampleData = {
+                    [STORAGE_KEYS.JSON_DATA]: '{"chart":{"result":[{"meta":{"symbol":"AAPL"},"timestamp":[1609459200,1609459260,1609459320],"indicators":{"quote":[{"close":[130,131,132]},{"high":[132,133,134]},{"low":[129,130,131]},{"open":[130,131,132]},{"volume":[1000,1100,1200]}]}}]}}',
+                    [STORAGE_KEYS.PARSED_DATA]: [
+                      {timestamp: 1609459200, open: 130, high: 132, low: 129, close: 130, volume: 1000},
+                      {timestamp: 1609459260, open: 131, high: 133, low: 130, close: 131, volume: 1100},
+                      {timestamp: 1609459320, open: 132, high: 134, low: 131, close: 132, volume: 1200}
+                    ],
+                    [STORAGE_KEYS.REPLAY_DATA]: [
+                      {timestamp: 1609459200, open: 130, high: 132, low: 129, close: 130, volume: 1000},
+                      {timestamp: 1609459260, open: 131, high: 133, low: 130, close: 131, volume: 1100},
+                      {timestamp: 1609459320, open: 132, high: 134, low: 131, close: 132, volume: 1200}
+                    ],
+                    [STORAGE_KEYS.REPLAY_INDEX]: 2,
+                    [STORAGE_KEYS.IS_REPLAYING]: true,
+                    [STORAGE_KEYS.IS_PAUSED]: true,
+                    [STORAGE_KEYS.TRANSACTIONS]: [
+                      {type: 'buy', price: 130, quantity: 10, timestamp: 1609459200, index: 0},
+                      {type: 'sell', price: 131, quantity: 5, timestamp: 1609459260, index: 1}
+                    ],
+                    [STORAGE_KEYS.CURRENT_POSITION]: {quantity: 5, avgPrice: 130},
+                    [STORAGE_KEYS.QUANTITY]: 3,
+                    [STORAGE_KEYS.SYMBOL]: 'AAPL',
+                    [STORAGE_KEYS.INTERVAL]: '5m',
+                    [STORAGE_KEYS.TIME_PERIOD]: '2d'
+                  };
+
+                  Object.entries(sampleData).forEach(([key, value]) => {
+                    localStorage.setItem(key, JSON.stringify(value));
+                  });
+
+                  alert('Sample data added! Reload the page to test restoration.');
+                }}
+                className="px-4 py-2 bg-purple-600 text-white rounded-md hover:bg-purple-700 transition-colors"
+              >
+                🧪 Add Sample Data
               </button>
             </div>
           </div>
