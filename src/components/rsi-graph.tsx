@@ -13,6 +13,61 @@ export function RSIGraph({ data }: RSIGraphProps) {
   const chartRef = useRef<any>(null);
   const seriesRef = useRef<any>(null);
 
+  // Sync with candlestick chart
+  useEffect(() => {
+    if (chartRef.current) {
+      const syncCharts = () => {
+        const candlestickChart = (window as any).candlestickChart;
+        if (candlestickChart && chartRef.current) {
+          // Sync time scale
+          const timeScale = candlestickChart.timeScale();
+          const rsiTimeScale = chartRef.current.timeScale();
+          
+          // Get visible range from candlestick chart
+          const visibleRange = timeScale.getVisibleLogicalRange();
+          if (visibleRange) {
+            rsiTimeScale.setVisibleLogicalRange(visibleRange);
+          }
+        }
+      };
+
+      // Set up crosshair sync
+      chartRef.current.subscribeCrosshairMove((param: any) => {
+        const candlestickChart = (window as any).candlestickChart;
+        if (candlestickChart && param.time) {
+          candlestickChart.crosshairMove(param);
+        }
+      });
+
+      // Listen for candlestick chart changes
+      const candlestickChart = (window as any).candlestickChart;
+      if (candlestickChart) {
+        candlestickChart.timeScale().subscribeVisibleLogicalRangeChange(() => {
+          syncCharts();
+        });
+        
+        candlestickChart.subscribeCrosshairMove((param: any) => {
+          if (chartRef.current && param.time) {
+            chartRef.current.crosshairMove(param);
+          }
+        });
+      }
+
+      // Initial sync
+      syncCharts();
+    }
+  }, []);
+
+  // Expose chart instance for syncing
+  useEffect(() => {
+    if (chartRef.current) {
+      (window as any).rsiChart = chartRef.current;
+    }
+    return () => {
+      delete (window as any).rsiChart;
+    };
+  }, []);
+
   useEffect(() => {
     if (!chartContainerRef.current) return;
 
