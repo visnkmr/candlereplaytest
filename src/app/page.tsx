@@ -11,6 +11,7 @@ export default function Home() {
   const [isReplaying, setIsReplaying] = useState<boolean>(false);
   const [replayData, setReplayData] = useState<CandlestickData[]>([]);
   const [replayIndex, setReplayIndex] = useState<number>(0);
+  const [isPaused, setIsPaused] = useState<boolean>(false);
 
   // Parse initial data on mount
   useEffect(() => {
@@ -25,15 +26,16 @@ export default function Home() {
 
   // Handle replay animation
   useEffect(() => {
-    if (isReplaying && replayIndex < replayData.length) {
+    if (isReplaying && !isPaused && replayIndex < replayData.length) {
       const timer = setTimeout(() => {
         setReplayIndex(prev => prev + 1);
       }, 1000);
       return () => clearTimeout(timer);
     } else if (isReplaying && replayIndex >= replayData.length) {
       setIsReplaying(false);
+      setIsPaused(false);
     }
-  }, [isReplaying, replayIndex, replayData.length]);
+  }, [isReplaying, isPaused, replayIndex, replayData.length]);
 
   const handleParseJson = () => {
     try {
@@ -72,8 +74,27 @@ export default function Home() {
 
   const stopReplay = () => {
     setIsReplaying(false);
+    setIsPaused(false);
     setReplayIndex(0);
     setReplayData([]);
+  };
+
+  const pauseReplay = () => {
+    setIsPaused(true);
+  };
+
+  const resumeReplay = () => {
+    setIsPaused(false);
+  };
+
+  const resetReplay = () => {
+    setReplayIndex(0);
+    setIsPaused(false);
+  };
+
+  const handleProgressChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const newIndex = parseInt(e.target.value);
+    setReplayIndex(newIndex);
   };
 
   const currentDisplayData = isReplaying ? replayData.slice(0, replayIndex + 1) : parsedData;
@@ -112,26 +133,87 @@ export default function Home() {
             >
               Download as CSV
             </button>
-            {!isReplaying ? (
+            <div className="flex items-center gap-4">
               <button
-                onClick={startReplay}
+                onClick={() => {
+                  if (!isReplaying) {
+                    startReplay();
+                  } else {
+                    resetReplay();
+                  }
+                }}
                 disabled={parsedData.length === 0}
-                className="px-4 py-2 bg-purple-600 text-white rounded-md hover:bg-purple-700 transition-colors disabled:bg-gray-400 disabled:cursor-not-allowed"
+                className="px-3 py-2 bg-gray-600 text-white rounded-md hover:bg-gray-700 transition-colors disabled:bg-gray-400 disabled:cursor-not-allowed"
               >
-                Start Replay
+                ⏮️
               </button>
-            ) : (
+              {!isReplaying ? (
+                <button
+                  onClick={startReplay}
+                  disabled={parsedData.length === 0}
+                  className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors disabled:bg-gray-400 disabled:cursor-not-allowed"
+                >
+                  ▶️ Play
+                </button>
+              ) : (
+                !isPaused ? (
+                  <button
+                    onClick={pauseReplay}
+                    className="px-4 py-2 bg-yellow-600 text-white rounded-md hover:bg-yellow-700 transition-colors"
+                  >
+                    ⏸️ Pause
+                  </button>
+                ) : (
+                  <button
+                    onClick={resumeReplay}
+                    className="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 transition-colors"
+                  >
+                    ▶️ Play
+                  </button>
+                )
+              )}
               <button
-                onClick={stopReplay}
-                className="px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700 transition-colors"
+                onClick={() => {
+                  if (isReplaying) {
+                    setReplayIndex(replayData.length - 1);
+                  }
+                }}
+                disabled={!isReplaying}
+                className="px-3 py-2 bg-gray-600 text-white rounded-md hover:bg-gray-700 transition-colors disabled:bg-gray-400 disabled:cursor-not-allowed"
               >
-                Stop Replay
+                ⏭️
               </button>
-            )}
+              <div className="flex-1 flex items-center gap-2">
+                <span className="text-sm text-gray-600">
+                  {isReplaying ? replayIndex + 1 : parsedData.length}
+                </span>
+                <input
+                  type="range"
+                  min="0"
+                  max={isReplaying ? replayData.length - 1 : parsedData.length - 1}
+                  value={isReplaying ? replayIndex : parsedData.length - 1}
+                  onChange={isReplaying ? handleProgressChange : undefined}
+                  disabled={!isReplaying}
+                  className="flex-1 disabled:opacity-50"
+                />
+                <span className="text-sm text-gray-600">
+                  {isReplaying ? replayData.length : parsedData.length}
+                </span>
+              </div>
+              {isReplaying && (
+                <button
+                  onClick={stopReplay}
+                  className="px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700 transition-colors"
+                >
+                  ⏹️ Stop
+                </button>
+              )}
+            </div>
           </div>
           {isReplaying && (
             <div className="mt-4 p-3 bg-purple-100 border border-purple-400 text-purple-700 rounded">
               Replay Progress: {replayIndex + 1} / {replayData.length} candles
+              {isPaused && <span className="ml-2 font-semibold">(PAUSED)</span>}
             </div>
           )}
         </div>
