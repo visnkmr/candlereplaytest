@@ -1,12 +1,12 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { CandlestickChart } from "@/components/candlestick-chart";
 import { RSIGraph } from "@/components/rsi-graph";
-import { CandlestickData, ExampleData, parseExampleData, exampleData } from "@/data/candlestick-data";
+import { CandlestickData, ExampleData, parseExampleData, parseYahooFinanceData, YahooFinanceResponse } from "@/data/candlestick-data";
 
 export default function Home() {
-  const [jsonData, setJsonData] = useState<string>(JSON.stringify(exampleData, null, 2));
+  const [jsonData, setJsonData] = useState<string>();
   const [parsedData, setParsedData] = useState<CandlestickData[]>([]);
   const [error, setError] = useState<string>("");
   const [isReplaying, setIsReplaying] = useState<boolean>(false);
@@ -25,17 +25,61 @@ export default function Home() {
     quantity: number;
     avgPrice: number;
   }>({ quantity: 0, avgPrice: 0 });
+  const [symbol, setSymbol] = useState<string>("");
+  const [interval, setInterval] = useState<string>("1m");
+  const [timePeriod, setTimePeriod] = useState<string>("1d");
+
+  const yahooUrl = useMemo(() => {
+    // Calculate date range based on time period
+    // End date should be exactly 24 hours after start date for accurate replay
+    let daysAgo = 1; // default to 1 day
+    
+    switch (timePeriod) {
+      case "1d":
+        daysAgo = 1;
+        break;
+      case "2d":
+        daysAgo = 2;
+        break;
+      case "3d":
+        daysAgo = 3;
+        break;
+      case "4d":
+        daysAgo = 4;
+        break;
+      case "5d":
+        daysAgo = 5;
+        break;
+      case "6d":
+        daysAgo = 6;
+        break;
+      case "7d":
+        daysAgo = 7;
+        break;
+      default:
+        daysAgo = 1;
+    }
+    
+    // Calculate start date (daysAgo days ago from now)
+    const endDate = Math.floor(Date.now() / 1000);
+    const startDate = endDate - (daysAgo * 24 * 60 * 60);
+    
+    // Set end date to exactly 24 hours after start date for accurate replay
+    const accurateEndDate = startDate + (24 * 60 * 60);
+    
+    return `https://query2.finance.yahoo.com/v8/finance/chart/${symbol}?period1=${startDate}&period2=${accurateEndDate}&interval=${interval}&includePrePost=true&events=div%7Csplit%7Cearn&lang=en-US&region=US&source=cosaic`;
+  }, [symbol, interval, timePeriod]);
 
   // Parse initial data on mount
-  useEffect(() => {
-    try {
-      const parsed = JSON.parse(jsonData) as ExampleData;
-      const candlestickData = parseExampleData(parsed);
-      setParsedData(candlestickData);
-    } catch (err) {
-      setError("Invalid JSON format. Please check your input.");
-    }
-  }, []);
+  // useEffect(() => {
+  //   try {
+  //     const parsed = JSON.parse({}) as ExampleData;
+  //     const candlestickData = parseExampleData(parsed);
+  //     setParsedData(candlestickData);
+  //   } catch (err) {
+  //     setError("Invalid JSON format. Please check your input.");
+  //   }
+  // }, []);
 
   // Handle replay animation
   useEffect(() => {
@@ -52,13 +96,33 @@ export default function Home() {
 
   const handleParseJson = () => {
     try {
-      const parsed = JSON.parse(jsonData) as ExampleData;
-      const candlestickData = parseExampleData(parsed);
-      setParsedData(candlestickData);
-      setError("");
+      const parsed = jsonData && JSON.parse(jsonData);
+      
+      // Check if it's Yahoo Finance data or ExampleData
+      if (parsed.chart && parsed.chart.result) {
+        // It's Yahoo Finance data
+        const yahooData = parsed as YahooFinanceResponse;
+        const candlestickData = parseYahooFinanceData(yahooData);
+        setParsedData(candlestickData);
+        setError("");
+      } else {
+        // It's ExampleData
+        const exampleData = parsed as ExampleData;
+        const candlestickData = parseExampleData(exampleData);
+        setParsedData(candlestickData);
+        setError("");
+      }
     } catch (err) {
       setError("Invalid JSON format. Please check your input.");
     }
+  };
+
+  const copyToClipboard = () => {
+    navigator.clipboard.writeText(yahooUrl).then(() => {
+      setError("URL copied to clipboard! Paste it in browser and copy the JSON response.");
+    }).catch(() => {
+      setError("Failed to copy URL. Please copy it manually.");
+    });
   };
 
   const convertToCSV = (data: CandlestickData[]) => {
@@ -197,31 +261,109 @@ export default function Home() {
         </div>
         
         <div className="bg-white rounded-lg shadow-lg p-6 mb-6">
-          <h2 className="text-xl font-semibold text-gray-900 mb-4">JSON Input</h2>
-          <textarea
-            value={jsonData}
-            onChange={(e) => setJsonData(e.target.value)}
-            placeholder="Enter JSON data in ExampleData format..."
-            className="w-full h-32 p-3 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-          />
-          {error && (
-            <div className="mt-2 p-2 bg-red-100 border border-red-400 text-red-700 rounded">
-              {error}
+          <h2 className="text-xl font-semibold text-gray-900 mb-4">Yahoo Finance Data</h2>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Symbol</label>
+              <input
+                type="text"
+                value={symbol}
+                onChange={(e) => setSymbol(e.target.value)}
+                placeholder="e.g., HDFCBANK.NS, AAPL"
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              />
             </div>
-          )}
-          <div className="mt-4 flex gap-4">
-            <button
-              onClick={handleParseJson}
-              className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors"
-            >
-              Parse & Display
-            </button>
-            <button
-              onClick={() => convertToCSV(parsedData)}
-              className="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 transition-colors"
-            >
-              Download as CSV
-            </button>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Interval</label>
+              <select
+                value={interval}
+                onChange={(e) => setInterval(e.target.value)}
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              >
+                <option value="1m">1 Minute</option>
+                <option value="5m">5 Minutes</option>
+                <option value="15m">15 Minutes</option>
+                <option value="30m">30 Minutes</option>
+                <option value="1h">1 Hour</option>
+                <option value="1d">1 Day</option>
+              </select>
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Time Period</label>
+              <select
+                value={timePeriod}
+                onChange={(e) => setTimePeriod(e.target.value)}
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              >
+                <option value="1d">Last Day</option>
+                <option value="2d">Last 2 Days</option>
+                <option value="3d">Last 3 Days</option>
+                <option value="4d">Last 4 Days</option>
+                <option value="5d">Last 5 Days</option>
+                <option value="6d">Last 6 Days</option>
+                <option value="7d">Last 7 Days</option>
+              </select>
+            </div>
+          </div>
+          
+          <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-4">
+            <h3 className="text-lg font-medium text-blue-900 mb-2">Yahoo Finance API URL</h3>
+            <div className="bg-white border border-blue-300 rounded p-3 mb-3">
+              <code className="text-sm text-blue-800 break-all">{yahooUrl}</code>
+            </div>
+            <div className="flex gap-2">
+              <button
+                onClick={copyToClipboard}
+                className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors"
+              >
+                📋 Copy URL
+              </button>
+              <button
+                onClick={() => window.open(yahooUrl, '_blank')}
+                className="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 transition-colors"
+              >
+                🔗 Open in Browser
+              </button>
+            </div>
+            <div className="mt-3 text-sm text-blue-800">
+              <p><strong>Instructions:</strong></p>
+              <ol className="list-decimal list-inside mt-1 space-y-1">
+                <li>Click &quot;Copy URL&quot; or copy the URL above</li>
+                <li>Paste the URL in your browser address bar</li>
+                <li>Copy the entire JSON response from the page</li>
+                <li>Paste the JSON in the textarea below</li>
+                <li>Click &quot;Parse & Display&quot; to view the chart</li>
+              </ol>
+            </div>
+          </div>
+          
+          <div className="border-t pt-4">
+            <h3 className="text-lg font-medium text-gray-900 mb-2">JSON Response</h3>
+            <textarea
+              value={jsonData}
+              onChange={(e) => setJsonData(e.target.value)}
+              placeholder="Paste the JSON response from Yahoo Finance API here..."
+              className="w-full h-32 p-3 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+            />
+            {error && (
+              <div className="mt-2 p-2 bg-red-100 border border-red-400 text-red-700 rounded">
+                {error}
+              </div>
+            )}
+            <div className="mt-4 flex gap-4">
+              <button
+                onClick={handleParseJson}
+                className="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 transition-colors"
+              >
+                Parse & Display
+              </button>
+              <button
+                onClick={() => convertToCSV(parsedData)}
+                className="px-4 py-2 bg-purple-600 text-white rounded-md hover:bg-purple-700 transition-colors"
+              >
+                Download as CSV
+              </button>
+            </div>
           </div>
         </div>
 
