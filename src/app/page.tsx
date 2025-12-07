@@ -29,6 +29,60 @@ export default function Home() {
   const [interval, setInterval] = useState<string>("1m");
   const [timePeriod, setTimePeriod] = useState<string>("1d");
 
+  // Load saved data from localStorage on mount
+  useEffect(() => {
+    const savedData = localStorage.getItem('candlestickData');
+    const savedTransactions = localStorage.getItem('transactions');
+    const savedPosition = localStorage.getItem('currentPosition');
+    const savedReplayData = localStorage.getItem('replayData');
+    const savedReplayIndex = localStorage.getItem('replayIndex');
+    const savedIsReplaying = localStorage.getItem('isReplaying');
+    const savedIsPaused = localStorage.getItem('isPaused');
+
+    if (savedData) {
+      setJsonData(savedData);
+      try {
+        const parsed = JSON.parse(savedData);
+        if (parsed.chart && parsed.chart.result) {
+          const yahooData = parsed as YahooFinanceResponse;
+          const candlestickData = parseYahooFinanceData(yahooData);
+          setParsedData(candlestickData);
+        } else {
+          const exampleData = parsed as ExampleData;
+          const candlestickData = parseExampleData(exampleData);
+          setParsedData(candlestickData);
+        }
+        setError("");
+      } catch (err) {
+        setError("Invalid saved JSON format.");
+      }
+    }
+
+    if (savedTransactions) {
+      setTransactions(JSON.parse(savedTransactions));
+    }
+
+    if (savedPosition) {
+      setCurrentPosition(JSON.parse(savedPosition));
+    }
+
+    if (savedReplayData) {
+      setReplayData(JSON.parse(savedReplayData));
+    }
+
+    if (savedReplayIndex) {
+      setReplayIndex(parseInt(savedReplayIndex));
+    }
+
+    if (savedIsReplaying) {
+      setIsReplaying(savedIsReplaying === 'true');
+    }
+
+    if (savedIsPaused) {
+      setIsPaused(savedIsPaused === 'true');
+    }
+  }, []);
+
   const yahooUrl = useMemo(() => {
     // Calculate date range based on time period
     // End date should be exactly 24 hours after start date for accurate replay
@@ -70,16 +124,36 @@ export default function Home() {
     return `https://query2.finance.yahoo.com/v8/finance/chart/${symbol}?period1=${startDate}&period2=${accurateEndDate}&interval=${interval}&includePrePost=true&events=div%7Csplit%7Cearn&lang=en-US&region=US&source=cosaic`;
   }, [symbol, interval, timePeriod]);
 
-  // Parse initial data on mount
-  // useEffect(() => {
-  //   try {
-  //     const parsed = JSON.parse({}) as ExampleData;
-  //     const candlestickData = parseExampleData(parsed);
-  //     setParsedData(candlestickData);
-  //   } catch (err) {
-  //     setError("Invalid JSON format. Please check your input.");
-  //   }
-  // }, []);
+  // Save data to localStorage whenever it changes
+  useEffect(() => {
+    if (jsonData) {
+      localStorage.setItem('candlestickData', jsonData);
+    }
+  }, [jsonData]);
+
+  useEffect(() => {
+    localStorage.setItem('transactions', JSON.stringify(transactions));
+  }, [transactions]);
+
+  useEffect(() => {
+    localStorage.setItem('currentPosition', JSON.stringify(currentPosition));
+  }, [currentPosition]);
+
+  useEffect(() => {
+    localStorage.setItem('replayData', JSON.stringify(replayData));
+  }, [replayData]);
+
+  useEffect(() => {
+    localStorage.setItem('replayIndex', replayIndex.toString());
+  }, [replayIndex]);
+
+  useEffect(() => {
+    localStorage.setItem('isReplaying', isReplaying.toString());
+  }, [isReplaying]);
+
+  useEffect(() => {
+    localStorage.setItem('isPaused', isPaused.toString());
+  }, [isPaused]);
 
   // Handle replay animation
   useEffect(() => {
@@ -154,6 +228,28 @@ export default function Home() {
     setIsPaused(false);
     setReplayIndex(0);
     setReplayData([]);
+  };
+
+  const clearSavedData = () => {
+    localStorage.removeItem('candlestickData');
+    localStorage.removeItem('transactions');
+    localStorage.removeItem('currentPosition');
+    localStorage.removeItem('replayData');
+    localStorage.removeItem('replayIndex');
+    localStorage.removeItem('isReplaying');
+    localStorage.removeItem('isPaused');
+    
+    // Reset state
+    // const defaultData = parseExampleData(exampleData);
+    // setJsonData(JSON.stringify(exampleData, null, 2));
+    // setParsedData(defaultData);
+    setTransactions([]);
+    setCurrentPosition({ quantity: 0, avgPrice: 0 });
+    setReplayData([]);
+    setReplayIndex(0);
+    setIsReplaying(false);
+    setIsPaused(false);
+    setError("");
   };
 
   const pauseReplay = () => {
@@ -350,7 +446,7 @@ export default function Home() {
                 {error}
               </div>
             )}
-            <div className="mt-4 flex gap-4">
+            <div className="mt-4 flex gap-4 flex-wrap">
               <button
                 onClick={handleParseJson}
                 className="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 transition-colors"
@@ -362,6 +458,12 @@ export default function Home() {
                 className="px-4 py-2 bg-purple-600 text-white rounded-md hover:bg-purple-700 transition-colors"
               >
                 Download as CSV
+              </button>
+              <button
+                onClick={clearSavedData}
+                className="px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700 transition-colors"
+              >
+                🗑️ Clear Saved Data
               </button>
             </div>
           </div>

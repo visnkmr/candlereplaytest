@@ -69,7 +69,20 @@ export interface YahooFinanceResponse {
   };
 }
 
-// export const exampleData: ExampleData = {};
+// export const exampleData: ExampleData = {
+//   "timestamp": [1704067200, 1704067260, 1704067320],
+//   "indicators": {
+//     "quote": [
+//       {
+//         "low": [150.25, 150.30, 150.28],
+//         "volume": [1000000, 1200000, 950000],
+//         "high": [150.35, 150.40, 150.38],
+//         "close": [150.30, 150.35, 150.32],
+//         "open": [150.28, 150.32, 150.30]
+//       }
+//     ]
+//   }
+// }
 
 export function calculateRSI(prices: number[], period: number = 14): number[] {
   if (prices.length < period + 1) return [];

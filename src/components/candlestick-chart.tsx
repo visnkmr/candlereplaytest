@@ -145,6 +145,14 @@ export function CandlestickChart({ data, transactions = [] }: CandlestickChartPr
       }));
       
       seriesRef.current.setData(candlestickData);
+      
+      // Zoom out to show all data
+      setTimeout(() => {
+        if (chartRef.current) {
+          const timeScale = chartRef.current.timeScale();
+          timeScale.fitContent();
+        }
+      }, 100);
     }
   }, [data]);
 

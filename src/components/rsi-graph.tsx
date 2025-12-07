@@ -161,6 +161,14 @@ export function RSIGraph({ data }: RSIGraphProps) {
       seriesRef.current.rsiSeries.setData(rsiData);
       seriesRef.current.overboughtSeries.setData(overboughtData);
       seriesRef.current.oversoldSeries.setData(oversoldData);
+      
+      // Zoom out to show all data
+      setTimeout(() => {
+        if (chartRef.current) {
+          const timeScale = chartRef.current.timeScale();
+          timeScale.fitContent();
+        }
+      }, 100);
     }
   }, [data]);
 
