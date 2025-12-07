@@ -11,6 +11,7 @@ interface CandlestickChartProps {
 export function CandlestickChart({ data }: CandlestickChartProps) {
   const chartContainerRef = useRef<HTMLDivElement>(null);
   const chartRef = useRef<any>(null);
+  const seriesRef = useRef<any>(null);
 
   useEffect(() => {
     if (!chartContainerRef.current) return;
@@ -36,7 +37,6 @@ export function CandlestickChart({ data }: CandlestickChartProps) {
       },
       timeScale: {
         borderColor: "#e5e7eb",
-        // textColor: "#374151",
         timeVisible: true,
         secondsVisible: false,
       },
@@ -51,36 +51,8 @@ export function CandlestickChart({ data }: CandlestickChartProps) {
       wickUpColor: "#10b981",
     });
 
-    // const volumeSeries = chart.addSeries(HistogramSeries,{
-    //   color: "#3b82f6",
-    //   priceFormat: {
-    //     type: "volume",
-    //   },
-    //   priceScaleId: "volume",
-    //   // scaleMargins: {
-    //   //   top: 0.8,
-    //   //   bottom: 0,
-    //   // },
-    // });
-
-    const candlestickData = data.map(item => ({
-      time: item.timestamp as any,
-      open: item.open,
-      high: item.high,
-      low: item.low,
-      close: item.close,
-    }));
-
-    const volumeData = data.map(item => ({
-      time: item.timestamp as any,
-      value: item.volume,
-      color: item.close > item.open ? "#10b981" : "#ef4444",
-    }));
-
-    candlestickSeries.setData(candlestickData);
-    // volumeSeries.setData(volumeData);
-
     chartRef.current = chart;
+    seriesRef.current = candlestickSeries;
 
     const handleResize = () => {
       if (chartContainerRef.current && chartRef.current) {
@@ -98,6 +70,20 @@ export function CandlestickChart({ data }: CandlestickChartProps) {
         chartRef.current.remove();
       }
     };
+  }, []);
+
+  useEffect(() => {
+    if (seriesRef.current && data.length > 0) {
+      const candlestickData = data.map(item => ({
+        time: item.timestamp as any,
+        open: item.open,
+        high: item.high,
+        low: item.low,
+        close: item.close,
+      }));
+      
+      seriesRef.current.setData(candlestickData);
+    }
   }, [data]);
 
   return (
