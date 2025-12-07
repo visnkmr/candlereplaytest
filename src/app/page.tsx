@@ -155,12 +155,35 @@ export default function Home() {
     }));
   };
 
+  const handleSellAll = () => {
+    const currentCandle = currentDisplayData[currentDisplayData.length - 1];
+    if (!currentCandle || currentPosition.quantity === 0) return;
+    
+    const newTransaction = {
+      type: 'sell' as const,
+      price: currentCandle.close,
+      quantity: currentPosition.quantity,
+      timestamp: currentCandle.timestamp,
+      index: currentDisplayData.length - 1
+    };
+    
+    setTransactions(prev => [...prev, newTransaction]);
+    
+    setCurrentPosition({ quantity: 0, avgPrice: 0 });
+  };
+
   const calculatePnL = () => {
     if (currentPosition.quantity === 0) return 0;
     const currentPrice = currentDisplayData[currentDisplayData.length - 1]?.close || 0;
     const currentValue = currentPosition.quantity * currentPrice;
     const costBasis = currentPosition.quantity * currentPosition.avgPrice;
     return currentValue - costBasis;
+  };
+
+  const calculateTotalInvested = () => {
+    return transactions
+      .filter(tx => tx.type === 'buy')
+      .reduce((total, tx) => total + (tx.price * tx.quantity), 0);
   };
 
   const currentDisplayData = isReplaying ? replayData.slice(0, replayIndex + 1) : parsedData;
@@ -227,11 +250,24 @@ export default function Home() {
             >
               📉 Sell
             </button>
+            <button
+              onClick={handleSellAll}
+              disabled={currentDisplayData.length === 0 || currentPosition.quantity === 0}
+              className="px-6 py-2 bg-orange-600 text-white rounded-md hover:bg-orange-700 transition-colors disabled:bg-gray-400 disabled:cursor-not-allowed"
+            >
+              💰 Sell All
+            </button>
           </div>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
             <div className="bg-gray-50 rounded p-3">
               <h3 className="text-sm font-medium text-gray-700">Position</h3>
               <p className="text-lg font-semibold">{currentPosition.quantity} shares @ ${currentPosition.avgPrice.toFixed(2)}</p>
+            </div>
+            <div className="bg-gray-50 rounded p-3">
+              <h3 className="text-sm font-medium text-gray-700">Total Invested</h3>
+              <p className="text-lg font-semibold text-blue-600">
+                ${calculateTotalInvested().toFixed(2)}
+              </p>
             </div>
             <div className="bg-gray-50 rounded p-3">
               <h3 className="text-sm font-medium text-gray-700">P&L</h3>
