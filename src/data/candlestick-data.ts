@@ -5,6 +5,7 @@ export interface CandlestickData {
   low: number;
   close: number;
   volume: number;
+  rsi?: number;
 }
 
 export interface ExampleData {
@@ -35,10 +36,46 @@ export const exampleData: ExampleData = {
   }
 }
 
+export function calculateRSI(prices: number[], period: number = 14): number[] {
+  if (prices.length < period + 1) return [];
+  
+  const rsi: number[] = [];
+  let gains = 0;
+  let losses = 0;
+  
+  // Calculate initial gains and losses
+  for (let i = 1; i <= period; i++) {
+    const change = prices[i] - prices[i - 1];
+    if (change > 0) {
+      gains += change;
+    } else {
+      losses -= change;
+    }
+  }
+  
+  let avgGain = gains / period;
+  let avgLoss = losses / period;
+  
+  // Calculate RSI for the rest
+  for (let i = period + 1; i < prices.length; i++) {
+    const change = prices[i] - prices[i - 1];
+    const gain = change > 0 ? change : 0;
+    const loss = change < 0 ? -change : 0;
+    
+    avgGain = (avgGain * (period - 1) + gain) / period;
+    avgLoss = (avgLoss * (period - 1) + loss) / period;
+    
+    const rs = avgGain / avgLoss;
+    rsi.push(100 - (100 / (1 + rs)));
+  }
+  
+  return rsi;
+}
+
 export function parseExampleData(data: ExampleData): CandlestickData[] {
   const quote = data.indicators.quote[0];
   
-  return data.timestamp.map((timestamp, index) => ({
+  const candlestickData: CandlestickData[] = data.timestamp.map((timestamp, index) => ({
     timestamp,
     open: quote.open[index],
     high: quote.high[index],
@@ -46,6 +83,19 @@ export function parseExampleData(data: ExampleData): CandlestickData[] {
     close: quote.close[index],
     volume: quote.volume[index]
   }));
+  
+  // Calculate RSI
+  const closingPrices = candlestickData.map(d => d.close);
+  const rsiValues = calculateRSI(closingPrices);
+  
+  // Add RSI values to candlestick data (skip first 14 values as RSI needs that many)
+  rsiValues.forEach((rsi, index) => {
+    if (candlestickData[index + 14]) {
+      candlestickData[index + 14].rsi = rsi;
+    }
+  });
+  
+  return candlestickData;
 }
 
 export const sampleCandlestickData: CandlestickData[] = parseExampleData(exampleData);

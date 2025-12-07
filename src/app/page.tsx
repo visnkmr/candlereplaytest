@@ -2,7 +2,8 @@
 
 import { useState, useEffect } from "react";
 import { CandlestickChart } from "@/components/candlestick-chart";
-import { sampleCandlestickData, CandlestickData, ExampleData, parseExampleData, exampleData } from "@/data/candlestick-data";
+import { RSIGraph } from "@/components/rsi-graph";
+import { CandlestickData, ExampleData, parseExampleData, exampleData } from "@/data/candlestick-data";
 
 export default function Home() {
   const [jsonData, setJsonData] = useState<string>(JSON.stringify(exampleData, null, 2));
@@ -333,6 +334,10 @@ export default function Home() {
         
         <div className="bg-white rounded-lg shadow-lg p-6">
           <CandlestickChart data={currentDisplayData} />
+        </div>
+        
+        <div className="bg-white rounded-lg shadow-lg p-6">
+          <RSIGraph data={currentDisplayData} />
         </div>
         
         {currentDisplayData.length > 0 && (
