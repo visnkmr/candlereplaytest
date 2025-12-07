@@ -12,6 +12,18 @@ export default function Home() {
   const [replayData, setReplayData] = useState<CandlestickData[]>([]);
   const [replayIndex, setReplayIndex] = useState<number>(0);
   const [isPaused, setIsPaused] = useState<boolean>(false);
+  const [quantity, setQuantity] = useState<number>(1);
+  const [transactions, setTransactions] = useState<Array<{
+    type: 'buy' | 'sell';
+    price: number;
+    quantity: number;
+    timestamp: number;
+    index: number;
+  }>>([]);
+  const [currentPosition, setCurrentPosition] = useState<{
+    quantity: number;
+    avgPrice: number;
+  }>({ quantity: 0, avgPrice: 0 });
 
   // Parse initial data on mount
   useEffect(() => {
@@ -97,6 +109,59 @@ export default function Home() {
     setReplayIndex(newIndex);
   };
 
+  const handleBuy = () => {
+    const currentCandle = currentDisplayData[currentDisplayData.length - 1];
+    if (!currentCandle) return;
+    
+    const newTransaction = {
+      type: 'buy' as const,
+      price: currentCandle.close,
+      quantity,
+      timestamp: currentCandle.timestamp,
+      index: currentDisplayData.length - 1
+    };
+    
+    setTransactions(prev => [...prev, newTransaction]);
+    
+    setCurrentPosition(prev => {
+      const totalQuantity = prev.quantity + quantity;
+      const totalCost = (prev.quantity * prev.avgPrice) + (quantity * currentCandle.close);
+      return {
+        quantity: totalQuantity,
+        avgPrice: totalCost / totalQuantity
+      };
+    });
+  };
+
+  const handleSell = () => {
+    const currentCandle = currentDisplayData[currentDisplayData.length - 1];
+    if (!currentCandle || currentPosition.quantity === 0) return;
+    
+    const sellQuantity = Math.min(quantity, currentPosition.quantity);
+    const newTransaction = {
+      type: 'sell' as const,
+      price: currentCandle.close,
+      quantity: sellQuantity,
+      timestamp: currentCandle.timestamp,
+      index: currentDisplayData.length - 1
+    };
+    
+    setTransactions(prev => [...prev, newTransaction]);
+    
+    setCurrentPosition(prev => ({
+      quantity: prev.quantity - sellQuantity,
+      avgPrice: prev.avgPrice
+    }));
+  };
+
+  const calculatePnL = () => {
+    if (currentPosition.quantity === 0) return 0;
+    const currentPrice = currentDisplayData[currentDisplayData.length - 1]?.close || 0;
+    const currentValue = currentPosition.quantity * currentPrice;
+    const costBasis = currentPosition.quantity * currentPosition.avgPrice;
+    return currentValue - costBasis;
+  };
+
   const currentDisplayData = isReplaying ? replayData.slice(0, replayIndex + 1) : parsedData;
 
   return (
@@ -133,82 +198,130 @@ export default function Home() {
             >
               Download as CSV
             </button>
-            <div className="flex items-center gap-4">
+          </div>
+        </div>
+
+        <div className="bg-white rounded-lg shadow-lg p-6 mb-6">
+          <h2 className="text-xl font-semibold text-gray-900 mb-4">Trading Controls</h2>
+          <div className="flex items-center gap-4 mb-4">
+            <label className="text-sm font-medium text-gray-700">Quantity:</label>
+            <input
+              type="number"
+              min="1"
+              value={quantity}
+              onChange={(e) => setQuantity(Math.max(1, parseInt(e.target.value) || 1))}
+              className="w-24 px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+            />
+            <button
+              onClick={handleBuy}
+              disabled={currentDisplayData.length === 0}
+              className="px-6 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 transition-colors disabled:bg-gray-400 disabled:cursor-not-allowed"
+            >
+              📈 Buy
+            </button>
+            <button
+              onClick={handleSell}
+              disabled={currentDisplayData.length === 0 || currentPosition.quantity === 0}
+              className="px-6 py-2 bg-red-600 text-white rounded-md hover:bg-red-700 transition-colors disabled:bg-gray-400 disabled:cursor-not-allowed"
+            >
+              📉 Sell
+            </button>
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div className="bg-gray-50 rounded p-3">
+              <h3 className="text-sm font-medium text-gray-700">Position</h3>
+              <p className="text-lg font-semibold">{currentPosition.quantity} shares @ ${currentPosition.avgPrice.toFixed(2)}</p>
+            </div>
+            <div className="bg-gray-50 rounded p-3">
+              <h3 className="text-sm font-medium text-gray-700">P&L</h3>
+              <p className={`text-lg font-semibold ${calculatePnL() >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                ${calculatePnL().toFixed(2)}
+              </p>
+            </div>
+            <div className="bg-gray-50 rounded p-3">
+              <h3 className="text-sm font-medium text-gray-700">Transactions</h3>
+              <p className="text-lg font-semibold">{transactions.length}</p>
+            </div>
+          </div>
+        </div>
+
+        <div className="bg-white rounded-lg shadow-lg p-6 mb-6">
+          <h2 className="text-xl font-semibold text-gray-900 mb-4">Replay Controls</h2>
+          <div className="flex items-center gap-4">
+            <button
+              onClick={() => {
+                if (!isReplaying) {
+                  startReplay();
+                } else {
+                  resetReplay();
+                }
+              }}
+              disabled={parsedData.length === 0}
+              className="px-3 py-2 bg-gray-600 text-white rounded-md hover:bg-gray-700 transition-colors disabled:bg-gray-400 disabled:cursor-not-allowed"
+            >
+              ⏮️
+            </button>
+            {!isReplaying ? (
               <button
-                onClick={() => {
-                  if (!isReplaying) {
-                    startReplay();
-                  } else {
-                    resetReplay();
-                  }
-                }}
+                onClick={startReplay}
                 disabled={parsedData.length === 0}
-                className="px-3 py-2 bg-gray-600 text-white rounded-md hover:bg-gray-700 transition-colors disabled:bg-gray-400 disabled:cursor-not-allowed"
+                className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors disabled:bg-gray-400 disabled:cursor-not-allowed"
               >
-                ⏮️
+                ▶️ Play
               </button>
-              {!isReplaying ? (
+            ) : (
+              !isPaused ? (
                 <button
-                  onClick={startReplay}
-                  disabled={parsedData.length === 0}
-                  className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors disabled:bg-gray-400 disabled:cursor-not-allowed"
+                  onClick={pauseReplay}
+                  className="px-4 py-2 bg-yellow-600 text-white rounded-md hover:bg-yellow-700 transition-colors"
+                >
+                  ⏸️ Pause
+                </button>
+              ) : (
+                <button
+                  onClick={resumeReplay}
+                  className="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 transition-colors"
                 >
                   ▶️ Play
                 </button>
-              ) : (
-                !isPaused ? (
-                  <button
-                    onClick={pauseReplay}
-                    className="px-4 py-2 bg-yellow-600 text-white rounded-md hover:bg-yellow-700 transition-colors"
-                  >
-                    ⏸️ Pause
-                  </button>
-                ) : (
-                  <button
-                    onClick={resumeReplay}
-                    className="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 transition-colors"
-                  >
-                    ▶️ Play
-                  </button>
-                )
-              )}
-              <button
-                onClick={() => {
-                  if (isReplaying) {
-                    setReplayIndex(replayData.length - 1);
-                  }
-                }}
+              )
+            )}
+            <button
+              onClick={() => {
+                if (isReplaying) {
+                  setReplayIndex(replayData.length - 1);
+                }
+              }}
+              disabled={!isReplaying}
+              className="px-3 py-2 bg-gray-600 text-white rounded-md hover:bg-gray-700 transition-colors disabled:bg-gray-400 disabled:cursor-not-allowed"
+            >
+              ⏭️
+            </button>
+            <div className="flex-1 flex items-center gap-2">
+              <span className="text-sm text-gray-600">
+                {isReplaying ? replayIndex + 1 : parsedData.length}
+              </span>
+              <input
+                type="range"
+                min="0"
+                max={isReplaying ? replayData.length - 1 : parsedData.length - 1}
+                value={isReplaying ? replayIndex : parsedData.length - 1}
+                onChange={isReplaying ? handleProgressChange : undefined}
                 disabled={!isReplaying}
-                className="px-3 py-2 bg-gray-600 text-white rounded-md hover:bg-gray-700 transition-colors disabled:bg-gray-400 disabled:cursor-not-allowed"
-              >
-                ⏭️
-              </button>
-              <div className="flex-1 flex items-center gap-2">
-                <span className="text-sm text-gray-600">
-                  {isReplaying ? replayIndex + 1 : parsedData.length}
-                </span>
-                <input
-                  type="range"
-                  min="0"
-                  max={isReplaying ? replayData.length - 1 : parsedData.length - 1}
-                  value={isReplaying ? replayIndex : parsedData.length - 1}
-                  onChange={isReplaying ? handleProgressChange : undefined}
-                  disabled={!isReplaying}
-                  className="flex-1 disabled:opacity-50"
-                />
-                <span className="text-sm text-gray-600">
-                  {isReplaying ? replayData.length : parsedData.length}
-                </span>
-              </div>
-              {isReplaying && (
-                <button
-                  onClick={stopReplay}
-                  className="px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700 transition-colors"
-                >
-                  ⏹️ Stop
-                </button>
-              )}
+                className="flex-1 disabled:opacity-50"
+              />
+              <span className="text-sm text-gray-600">
+                {isReplaying ? replayData.length : parsedData.length}
+              </span>
             </div>
+            {isReplaying && (
+              <button
+                onClick={stopReplay}
+                className="px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700 transition-colors"
+              >
+                ⏹️ Stop
+              </button>
+            )}
           </div>
           {isReplaying && (
             <div className="mt-4 p-3 bg-purple-100 border border-purple-400 text-purple-700 rounded">
@@ -241,6 +354,42 @@ export default function Home() {
               <p className="text-2xl font-bold text-gray-900">
                 ${currentDisplayData.length > 0 ? Math.min(...currentDisplayData.map(d => d.low || Infinity)) : 'N/A'}
               </p>
+            </div>
+          </div>
+        )}
+
+        {transactions.length > 0 && (
+          <div className="mt-8 bg-white rounded-lg shadow-lg p-6">
+            <h2 className="text-xl font-semibold text-gray-900 mb-4">Transaction History</h2>
+            <div className="overflow-x-auto">
+              <table className="min-w-full divide-y divide-gray-200">
+                <thead className="bg-gray-50">
+                  <tr>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Type</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Price</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Quantity</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Total</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Candle</th>
+                  </tr>
+                </thead>
+                <tbody className="bg-white divide-y divide-gray-200">
+                  {transactions.map((tx, index) => (
+                    <tr key={index}>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${
+                          tx.type === 'buy' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
+                        }`}>
+                          {tx.type.toUpperCase()}
+                        </span>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">${tx.price.toFixed(2)}</td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{tx.quantity}</td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">${(tx.price * tx.quantity).toFixed(2)}</td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">#{tx.index + 1}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
             </div>
           </div>
         )}
