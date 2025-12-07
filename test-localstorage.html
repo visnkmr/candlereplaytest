@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>LocalStorage Test</title>
+</head>
+<body>
+    <h1>LocalStorage Test for Candlestick App</h1>
+    <button onclick="addTestData()">Add Test Data</button>
+    <button onclick="clearData()">Clear Data</button>
+    <button onclick="checkData()">Check Data</button>
+    <div id="output"></div>
+    
+    <script>
+        const STORAGE_KEYS = {
+            JSON_DATA: 'candlestick_json_data',
+            PARSED_DATA: 'candlestick_parsed_data',
+            REPLAY_DATA: 'candlestick_replay_data',
+            REPLAY_INDEX: 'candlestick_replay_index',
+            IS_REPLAYING: 'candlestick_is_replaying',
+            IS_PAUSED: 'candlestick_is_paused',
+            TRANSACTIONS: 'candlestick_transactions',
+            CURRENT_POSITION: 'candlestick_current_position',
+            QUANTITY: 'candlestick_quantity',
+            SYMBOL: 'candlestick_symbol',
+            INTERVAL: 'candlestick_interval',
+            TIME_PERIOD: 'candlestick_time_period'
+        };
+
+        function addTestData() {
+            const testData = {
+                [STORAGE_KEYS.JSON_DATA]: '{"chart":{"result":[{"meta":{"symbol":"AAPL"},"timestamp":[1609459200,1609459260],"indicators":{"quote":[{"close":[130,131]},{"high":[132,133]},{"low":[129,130]},{"open":[130,131]},{"volume":[1000,1100]}]}}]}}',
+                [STORAGE_KEYS.PARSED_DATA]: [
+                    {timestamp: 1609459200, open: 130, high: 132, low: 129, close: 130, volume: 1000},
+                    {timestamp: 1609459260, open: 131, high: 133, low: 130, close: 131, volume: 1100}
+                ],
+                [STORAGE_KEYS.REPLAY_DATA]: [
+                    {timestamp: 1609459200, open: 130, high: 132, low: 129, close: 130, volume: 1000},
+                    {timestamp: 1609459260, open: 131, high: 133, low: 130, close: 131, volume: 1100}
+                ],
+                [STORAGE_KEYS.REPLAY_INDEX]: 1,
+                [STORAGE_KEYS.IS_REPLAYING]: true,
+                [STORAGE_KEYS.IS_PAUSED]: false,
+                [STORAGE_KEYS.TRANSACTIONS]: [
+                    {type: 'buy', price: 130, quantity: 10, timestamp: 1609459200, index: 0}
+                ],
+                [STORAGE_KEYS.CURRENT_POSITION]: {quantity: 10, avgPrice: 130},
+                [STORAGE_KEYS.QUANTITY]: 5,
+                [STORAGE_KEYS.SYMBOL]: 'AAPL',
+                [STORAGE_KEYS.INTERVAL]: '1m',
+                [STORAGE_KEYS.TIME_PERIOD]: '1d'
+            };
+
+            Object.entries(testData).forEach(([key, value]) => {
+                localStorage.setItem(key, JSON.stringify(value));
+            });
+
+            updateOutput('Test data added to localStorage!');
+        }
+
+        function clearData() {
+            Object.values(STORAGE_KEYS).forEach(key => {
+                localStorage.removeItem(key);
+            });
+            updateOutput('All data cleared from localStorage!');
+        }
+
+        function checkData() {
+            let output = '<h3>LocalStorage Contents:</h3>';
+            Object.entries(STORAGE_KEYS).forEach(([name, key]) => {
+                const item = localStorage.getItem(key);
+                output += `<p><strong>${name}:</strong> ${item ? '✅ Data exists' : '❌ No data'}</p>`;
+                if (item) {
+                    try {
+                        const parsed = JSON.parse(item);
+                        output += `<small><pre>${JSON.stringify(parsed, null, 2)}</pre></small>`;
+                    } catch (e) {
+                        output += `<small><em>Invalid JSON</em></small>`;
+                    }
+                }
+            });
+            updateOutput(output);
+        }
+
+        function updateOutput(content) {
+            document.getElementById('output').innerHTML = content;
+        }
+
+        // Check data on load
+        checkData();
+    </script>
+</body>
+</html>
