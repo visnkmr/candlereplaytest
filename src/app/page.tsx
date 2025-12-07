@@ -2,12 +2,15 @@
 
 import { useState, useEffect } from "react";
 import { CandlestickChart } from "@/components/candlestick-chart";
-import { sampleCandlestickData, CandlestickData, ExampleData, parseExampleData } from "@/data/candlestick-data";
+import { sampleCandlestickData, CandlestickData, ExampleData, parseExampleData, exampleData } from "@/data/candlestick-data";
 
 export default function Home() {
-  const [jsonData, setJsonData] = useState<string>(JSON.stringify(sampleCandlestickData, null, 2));
+  const [jsonData, setJsonData] = useState<string>(JSON.stringify(exampleData, null, 2));
   const [parsedData, setParsedData] = useState<CandlestickData[]>([]);
   const [error, setError] = useState<string>("");
+  const [isReplaying, setIsReplaying] = useState<boolean>(false);
+  const [replayData, setReplayData] = useState<CandlestickData[]>([]);
+  const [replayIndex, setReplayIndex] = useState<number>(0);
 
   // Parse initial data on mount
   useEffect(() => {
@@ -19,6 +22,18 @@ export default function Home() {
       setError("Invalid JSON format. Please check your input.");
     }
   }, []);
+
+  // Handle replay animation
+  useEffect(() => {
+    if (isReplaying && replayIndex < replayData.length) {
+      const timer = setTimeout(() => {
+        setReplayIndex(prev => prev + 1);
+      }, 1000);
+      return () => clearTimeout(timer);
+    } else if (isReplaying && replayIndex >= replayData.length) {
+      setIsReplaying(false);
+    }
+  }, [isReplaying, replayIndex, replayData.length]);
 
   const handleParseJson = () => {
     try {
@@ -48,6 +63,20 @@ export default function Home() {
     a.click();
     URL.revokeObjectURL(url);
   };
+
+  const startReplay = () => {
+    setReplayData(parsedData);
+    setReplayIndex(0);
+    setIsReplaying(true);
+  };
+
+  const stopReplay = () => {
+    setIsReplaying(false);
+    setReplayIndex(0);
+    setReplayData([]);
+  };
+
+  const currentDisplayData = isReplaying ? replayData.slice(0, replayIndex + 1) : parsedData;
 
   return (
     <div className="min-h-screen bg-gray-50 p-8">
@@ -83,31 +112,52 @@ export default function Home() {
             >
               Download as CSV
             </button>
+            {!isReplaying ? (
+              <button
+                onClick={startReplay}
+                disabled={parsedData.length === 0}
+                className="px-4 py-2 bg-purple-600 text-white rounded-md hover:bg-purple-700 transition-colors disabled:bg-gray-400 disabled:cursor-not-allowed"
+              >
+                Start Replay
+              </button>
+            ) : (
+              <button
+                onClick={stopReplay}
+                className="px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700 transition-colors"
+              >
+                Stop Replay
+              </button>
+            )}
           </div>
+          {isReplaying && (
+            <div className="mt-4 p-3 bg-purple-100 border border-purple-400 text-purple-700 rounded">
+              Replay Progress: {replayIndex + 1} / {replayData.length} candles
+            </div>
+          )}
         </div>
         
         <div className="bg-white rounded-lg shadow-lg p-6">
-          <CandlestickChart data={parsedData} />
+          <CandlestickChart data={currentDisplayData} />
         </div>
         
-        {parsedData.length > 0 && (
+        {currentDisplayData.length > 0 && (
           <div className="mt-8 grid grid-cols-1 md:grid-cols-3 gap-4">
             <div className="bg-white rounded-lg shadow p-4">
               <h3 className="font-semibold text-gray-900 mb-2">Latest Price</h3>
               <p className="text-2xl font-bold text-green-600">
-                ${parsedData[parsedData.length - 1]?.close || 'N/A'}
+                ${currentDisplayData[currentDisplayData.length - 1]?.close || 'N/A'}
               </p>
             </div>
             <div className="bg-white rounded-lg shadow p-4">
               <h3 className="font-semibold text-gray-900 mb-2">24h High</h3>
               <p className="text-2xl font-bold text-gray-900">
-                ${parsedData.length > 0 ? Math.max(...parsedData.map(d => d.high || 0)) : 'N/A'}
+                ${currentDisplayData.length > 0 ? Math.max(...currentDisplayData.map(d => d.high || 0)) : 'N/A'}
               </p>
             </div>
             <div className="bg-white rounded-lg shadow p-4">
               <h3 className="font-semibold text-gray-900 mb-2">24h Low</h3>
               <p className="text-2xl font-bold text-gray-900">
-                ${parsedData.length > 0 ? Math.min(...parsedData.map(d => d.low || Infinity)) : 'N/A'}
+                ${currentDisplayData.length > 0 ? Math.min(...currentDisplayData.map(d => d.low || Infinity)) : 'N/A'}
               </p>
             </div>
           </div>
