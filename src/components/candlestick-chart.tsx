@@ -1,14 +1,21 @@
 "use client";
 
 import { useEffect, useRef } from "react";
-import { createChart, ColorType, CrosshairMode, CandlestickSeries, HistogramSeries } from "lightweight-charts";
+import { createChart, ColorType, CrosshairMode, CandlestickSeries, HistogramSeries, createSeriesMarkers } from "lightweight-charts";
 import { CandlestickData } from "@/data/candlestick-data";
 
 interface CandlestickChartProps {
   data: CandlestickData[];
+  transactions?: Array<{
+    type: 'buy' | 'sell';
+    price: number;
+    quantity: number;
+    timestamp: number;
+    index: number;
+  }>;
 }
 
-export function CandlestickChart({ data }: CandlestickChartProps) {
+export function CandlestickChart({ data, transactions = [] }: CandlestickChartProps) {
   const chartContainerRef = useRef<HTMLDivElement>(null);
   const chartRef = useRef<any>(null);
   const seriesRef = useRef<any>(null);
@@ -140,6 +147,31 @@ export function CandlestickChart({ data }: CandlestickChartProps) {
       seriesRef.current.setData(candlestickData);
     }
   }, [data]);
+
+  // Global markers array
+  const markersRef = useRef<any[]>([]);
+
+  // Add markers for transactions
+  useEffect(() => {
+    if (seriesRef.current && transactions.length > 0) {
+      // Clear existing markers
+      markersRef.current = [];
+      
+      // Add new markers for each transaction
+      transactions.forEach(tx => {
+        markersRef.current.push({
+          time: tx.timestamp as any,
+          position: tx.type === 'buy' ? 'belowBar' as const : 'aboveBar' as const,
+          color: tx.type === 'buy' ? '#10b981' : '#ef4444',
+          shape: tx.type === 'buy' ? 'arrowUp' as const : 'arrowDown' as const,
+          text: `${tx.type === 'buy' ? 'B' : 'S'} ${tx.quantity}@${tx.price.toFixed(2)}`,
+        });
+      });
+      
+      // Apply markers using createSeriesMarkers
+      createSeriesMarkers(seriesRef.current, markersRef.current);
+    }
+  }, [transactions]);
 
   return (
     <div className="w-full p-4">

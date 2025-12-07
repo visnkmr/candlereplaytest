@@ -369,7 +369,7 @@ export default function Home() {
         </div>
         
         <div className="bg-white rounded-lg shadow-lg p-6">
-          <CandlestickChart data={currentDisplayData} />
+          <CandlestickChart data={currentDisplayData} transactions={transactions} />
         </div>
         
         <div className="bg-white rounded-lg shadow-lg p-6">
