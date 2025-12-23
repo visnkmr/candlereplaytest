@@ -342,10 +342,62 @@ export default function Home() {
     }
   }, [isReplaying, isPaused, replayIndex, replayData.length]);
 
+  const handleFetchData = async () => {
+    if (!symbol || !interval || !timePeriod) {
+      setError("Please enter a symbol, select interval and time period.");
+      return;
+    }
+
+    setIsRestored(false); // Temporarily disable saving while fetching
+
+    try {
+      // Calculate date range
+      let daysAgo = 1;
+      switch (timePeriod) {
+        case "1d": daysAgo = 1; break;
+        case "2d": daysAgo = 2; break;
+        case "3d": daysAgo = 3; break;
+        case "4d": daysAgo = 4; break;
+        case "5d": daysAgo = 5; break;
+        case "6d": daysAgo = 6; break;
+        case "7d": daysAgo = 7; break;
+        default: daysAgo = 1;
+      }
+
+      const endDate = Math.floor(Date.now() / 1000);
+      const startDate = endDate - (daysAgo * 24 * 60 * 60);
+      const accurateEndDate = startDate + (24 * 60 * 60);
+
+      const apiUrl = `/api/yahoo-finance?symbol=${symbol}&period1=${startDate}&period2=${accurateEndDate}&interval=${interval}`;
+      const response = await fetch(apiUrl);
+
+      if (!response.ok) {
+        throw new Error(`Failed to fetch data: ${response.status}`);
+      }
+
+      const data = await response.json();
+
+      if (data.chart?.result?.[0]) {
+        const yahooData = data as YahooFinanceResponse;
+        const candlestickData = parseYahooFinanceData(yahooData);
+        setParsedData(candlestickData);
+        setJsonData(JSON.stringify(data, null, 2)); // Also populate the JSON textarea
+        setError("");
+      } else {
+        setError("No data found for the specified symbol and time period.");
+      }
+    } catch (err) {
+      setError("Failed to fetch data from Yahoo Finance. Please try again.");
+      console.error("Error fetching data:", err);
+    } finally {
+      setIsRestored(true);
+    }
+  };
+
   const handleParseJson = () => {
     try {
       const parsed = jsonData && JSON.parse(jsonData);
-      
+
       // Check if it's Yahoo Finance data or ExampleData
       if (parsed.chart && parsed.chart.result) {
         // It's Yahoo Finance data
@@ -503,6 +555,15 @@ export default function Home() {
   return (
     <div className="min-h-screen bg-gray-50 p-8">
       <div className="max-w-6xl mx-auto">
+        <div className="mb-6">
+          <nav className="flex justify-between items-center mb-4">
+            <div className="flex space-x-6">
+              <a href="/" className="text-blue-600 font-medium hover:text-blue-800">Candlestick Chart</a>
+              <a href="/yearly-comparison" className="text-gray-600 hover:text-blue-600">Yearly Comparison</a>
+            </div>
+          </nav>
+        </div>
+
         <div className="mb-8">
           <h1 className="text-3xl font-bold text-gray-900 mb-2">Candlestick Chart</h1>
           <p className="text-gray-600">Interactive candlestick chart with JSON input</p>
@@ -581,7 +642,13 @@ export default function Home() {
               </button>
             </div>
             <div className="mt-3 text-sm text-blue-800">
-              <p><strong>Instructions:</strong></p>
+              <p><strong>Option 1 - Direct Fetch:</strong></p>
+              <ol className="list-decimal list-inside mt-1 space-y-1">
+                <li>Enter symbol, select interval and time period above</li>
+                <li>Click &quot;Fetch Data&quot; button</li>
+                <li>Data will be loaded automatically</li>
+              </ol>
+              <p className="mt-3"><strong>Option 2 - Manual JSON:</strong></p>
               <ol className="list-decimal list-inside mt-1 space-y-1">
                 <li>Click &quot;Copy URL&quot; or copy the URL above</li>
                 <li>Paste the URL in your browser address bar</li>
@@ -606,6 +673,12 @@ export default function Home() {
               </div>
             )}
             <div className="mt-4 flex gap-4">
+              <button
+                onClick={handleFetchData}
+                className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors"
+              >
+                Fetch Data
+              </button>
               <button
                 onClick={handleParseJson}
                 className="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 transition-colors"
