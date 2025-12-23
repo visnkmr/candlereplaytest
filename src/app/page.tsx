@@ -1,8 +1,10 @@
 "use client";
 
 import { useState, useEffect, useMemo } from "react";
-import { CandlestickChart } from "@/components/candlestick-chart";
-import { RSIGraph } from "@/components/rsi-graph";
+import { D3CandlestickChart } from "@/components/d3-candlestick-chart";
+import { D3RSIGraph } from "@/components/d3-rsi-graph";
+import { LightweightCandlestickChart } from "@/components/lightweight-candlestick-chart";
+import { LightweightRSIGraph } from "@/components/lightweight-rsi-graph";
 import { CandlestickData, ExampleData, parseExampleData, parseYahooFinanceData, YahooFinanceResponse } from "@/data/candlestick-data";
 
 // Local storage keys
@@ -99,11 +101,16 @@ export default function Home() {
   const [timePeriod, setTimePeriod] = useState<string>("1d");
   const [isRestored, setIsRestored] = useState<boolean>(false);
 
+  // NEW D3 GRAPH OPTIONS
+  const [showGrid, setShowGrid] = useState<boolean>(true);
+  const [tooltipMode, setTooltipMode] = useState<'synced' | 'simple'>('synced');
+  const [graphEngine, setGraphEngine] = useState<'d3' | 'lightweight'>('d3');
+
   const yahooUrl = useMemo(() => {
     // Calculate date range based on time period
     // End date should be exactly 24 hours after start date for accurate replay
     let daysAgo = 1; // default to 1 day
-    
+
     switch (timePeriod) {
       case "1d":
         daysAgo = 1;
@@ -129,15 +136,15 @@ export default function Home() {
       default:
         daysAgo = 1;
     }
-    
+
     // Calculate start date (daysAgo days ago from now)
     // eslint-disable-next-line react-hooks/purity
     const endDate = Math.floor(Date.now() / 1000);
     const startDate = endDate - (daysAgo * 24 * 60 * 60);
-    
+
     // Set end date to exactly 24 hours after start date for accurate replay
     const accurateEndDate = startDate + (24 * 60 * 60);
-    
+
     return `https://query2.finance.yahoo.com/v8/finance/chart/${symbol}?period1=${startDate}&period2=${accurateEndDate}&interval=${interval}&includePrePost=true&events=div%7Csplit%7Cearn&lang=en-US&region=US&source=cosaic`;
   }, [symbol, interval, timePeriod]);
 
@@ -217,7 +224,7 @@ export default function Home() {
   // Restore state from localStorage on mount
   useEffect(() => {
     console.log('🔄 Restoring state from localStorage...');
-    
+
     // Check if localStorage is available
     if (typeof window === 'undefined' || !window.localStorage) {
       console.log('❌ localStorage not available');
@@ -429,11 +436,11 @@ export default function Home() {
     const headers = ["timestamp", "open", "high", "low", "close", "volume"];
     const csvContent = [
       headers.join(","),
-      ...data.map(row => 
+      ...data.map(row =>
         [row.timestamp, row.open, row.high, row.low, row.close, row.volume].join(",")
       )
     ].join("\n");
-    
+
     const blob = new Blob([csvContent], { type: "text/csv" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
@@ -477,7 +484,7 @@ export default function Home() {
   const handleBuy = () => {
     const currentCandle = currentDisplayData[currentDisplayData.length - 1];
     if (!currentCandle) return;
-    
+
     const newTransaction = {
       type: 'buy' as const,
       price: currentCandle.close,
@@ -485,9 +492,9 @@ export default function Home() {
       timestamp: currentCandle.timestamp,
       index: currentDisplayData.length - 1
     };
-    
+
     setTransactions(prev => [...prev, newTransaction]);
-    
+
     setCurrentPosition(prev => {
       const totalQuantity = prev.quantity + quantity;
       const totalCost = (prev.quantity * prev.avgPrice) + (quantity * currentCandle.close);
@@ -501,7 +508,7 @@ export default function Home() {
   const handleSell = () => {
     const currentCandle = currentDisplayData[currentDisplayData.length - 1];
     if (!currentCandle || currentPosition.quantity === 0) return;
-    
+
     const sellQuantity = Math.min(quantity, currentPosition.quantity);
     const newTransaction = {
       type: 'sell' as const,
@@ -510,9 +517,9 @@ export default function Home() {
       timestamp: currentCandle.timestamp,
       index: currentDisplayData.length - 1
     };
-    
+
     setTransactions(prev => [...prev, newTransaction]);
-    
+
     setCurrentPosition(prev => ({
       quantity: prev.quantity - sellQuantity,
       avgPrice: prev.avgPrice
@@ -522,7 +529,7 @@ export default function Home() {
   const handleSellAll = () => {
     const currentCandle = currentDisplayData[currentDisplayData.length - 1];
     if (!currentCandle || currentPosition.quantity === 0) return;
-    
+
     const newTransaction = {
       type: 'sell' as const,
       price: currentCandle.close,
@@ -530,9 +537,9 @@ export default function Home() {
       timestamp: currentCandle.timestamp,
       index: currentDisplayData.length - 1
     };
-    
+
     setTransactions(prev => [...prev, newTransaction]);
-    
+
     setCurrentPosition({ quantity: 0, avgPrice: 0 });
   };
 
@@ -568,7 +575,7 @@ export default function Home() {
           <h1 className="text-3xl font-bold text-gray-900 mb-2">Candlestick Chart</h1>
           <p className="text-gray-600">Interactive candlestick chart with JSON input</p>
         </div>
-        
+
         <div className="bg-white rounded-lg shadow-lg p-6 mb-6">
           <div className="flex justify-between items-center mb-4">
             <h2 className="text-xl font-semibold text-gray-900">Yahoo Finance Data</h2>
@@ -621,7 +628,7 @@ export default function Home() {
               </select>
             </div>
           </div>
-          
+
           <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-4">
             <h3 className="text-lg font-medium text-blue-900 mb-2">Yahoo Finance API URL</h3>
             <div className="bg-white border border-blue-300 rounded p-3 mb-3">
@@ -658,7 +665,7 @@ export default function Home() {
               </ol>
             </div>
           </div>
-          
+
           <div className="border-t pt-4">
             <h3 className="text-lg font-medium text-gray-900 mb-2">JSON Response</h3>
             <textarea
@@ -716,23 +723,23 @@ export default function Home() {
                   const sampleData = {
                     [STORAGE_KEYS.JSON_DATA]: '{"chart":{"result":[{"meta":{"symbol":"AAPL"},"timestamp":[1609459200,1609459260,1609459320],"indicators":{"quote":[{"close":[130,131,132]},{"high":[132,133,134]},{"low":[129,130,131]},{"open":[130,131,132]},{"volume":[1000,1100,1200]}]}}]}}',
                     [STORAGE_KEYS.PARSED_DATA]: [
-                      {timestamp: 1609459200, open: 130, high: 132, low: 129, close: 130, volume: 1000},
-                      {timestamp: 1609459260, open: 131, high: 133, low: 130, close: 131, volume: 1100},
-                      {timestamp: 1609459320, open: 132, high: 134, low: 131, close: 132, volume: 1200}
+                      { timestamp: 1609459200, open: 130, high: 132, low: 129, close: 130, volume: 1000 },
+                      { timestamp: 1609459260, open: 131, high: 133, low: 130, close: 131, volume: 1100 },
+                      { timestamp: 1609459320, open: 132, high: 134, low: 131, close: 132, volume: 1200 }
                     ],
                     [STORAGE_KEYS.REPLAY_DATA]: [
-                      {timestamp: 1609459200, open: 130, high: 132, low: 129, close: 130, volume: 1000},
-                      {timestamp: 1609459260, open: 131, high: 133, low: 130, close: 131, volume: 1100},
-                      {timestamp: 1609459320, open: 132, high: 134, low: 131, close: 132, volume: 1200}
+                      { timestamp: 1609459200, open: 130, high: 132, low: 129, close: 130, volume: 1000 },
+                      { timestamp: 1609459260, open: 131, high: 133, low: 130, close: 131, volume: 1100 },
+                      { timestamp: 1609459320, open: 132, high: 134, low: 131, close: 132, volume: 1200 }
                     ],
                     [STORAGE_KEYS.REPLAY_INDEX]: 2,
                     [STORAGE_KEYS.IS_REPLAYING]: true,
                     [STORAGE_KEYS.IS_PAUSED]: true,
                     [STORAGE_KEYS.TRANSACTIONS]: [
-                      {type: 'buy', price: 130, quantity: 10, timestamp: 1609459200, index: 0},
-                      {type: 'sell', price: 131, quantity: 5, timestamp: 1609459260, index: 1}
+                      { type: 'buy', price: 130, quantity: 10, timestamp: 1609459200, index: 0 },
+                      { type: 'sell', price: 131, quantity: 5, timestamp: 1609459260, index: 1 }
                     ],
-                    [STORAGE_KEYS.CURRENT_POSITION]: {quantity: 5, avgPrice: 130},
+                    [STORAGE_KEYS.CURRENT_POSITION]: { quantity: 5, avgPrice: 130 },
                     [STORAGE_KEYS.QUANTITY]: 3,
                     [STORAGE_KEYS.SYMBOL]: 'AAPL',
                     [STORAGE_KEYS.INTERVAL]: '5m',
@@ -895,15 +902,49 @@ export default function Home() {
             </div>
           )}
         </div>
-        
-        <div className="bg-white rounded-lg shadow-lg p-6">
-          <CandlestickChart data={currentDisplayData} transactions={transactions} />
+
+        <div className="bg-white rounded-3xl shadow-xl border border-gray-100 p-8 mb-8 overflow-hidden">
+          <div className="flex justify-between items-center mb-6">
+            <h2 className="text-xl font-black text-slate-800 tracking-tight">Market Analysis</h2>
+            <div className="flex bg-slate-100 p-1 rounded-xl gap-1">
+              <button
+                onClick={() => setGraphEngine(graphEngine === 'd3' ? 'lightweight' : 'd3')}
+                className={`px-4 py-1.5 text-[10px] font-black rounded-lg transition-all border ${graphEngine === 'd3' ? 'bg-white text-blue-600 shadow-sm border-white' : 'bg-white text-violet-600 shadow-sm border-white'}`}
+              >
+                ENGINE: {graphEngine.toUpperCase()}
+              </button>
+              {graphEngine === 'd3' && (
+                <>
+                  <button
+                    onClick={() => setShowGrid(!showGrid)}
+                    className={`px-4 py-1.5 text-[10px] font-black rounded-lg transition-all border ${showGrid ? 'bg-white text-blue-600 shadow-sm border-white' : 'text-slate-500 border-transparent hover:text-slate-700'}`}
+                  >
+                    GRID: {showGrid ? 'ON' : 'OFF'}
+                  </button>
+                  <button
+                    onClick={() => setTooltipMode(tooltipMode === 'synced' ? 'simple' : 'synced')}
+                    className={`px-4 py-1.5 text-[10px] font-black rounded-lg transition-all border ${tooltipMode === 'synced' ? 'bg-white text-blue-600 shadow-sm border-white' : 'text-slate-500 border-transparent hover:text-slate-700'}`}
+                  >
+                    TOOLTIP: {tooltipMode.toUpperCase()}
+                  </button>
+                </>
+              )}
+            </div>
+          </div>
+
+          {graphEngine === 'd3' ? (
+            <>
+              <D3CandlestickChart data={currentDisplayData} transactions={transactions} showGrid={showGrid} tooltipMode={tooltipMode} />
+              <D3RSIGraph data={currentDisplayData} showGrid={showGrid} />
+            </>
+          ) : (
+            <>
+              <LightweightCandlestickChart data={currentDisplayData} transactions={transactions} />
+              <LightweightRSIGraph data={currentDisplayData} />
+            </>
+          )}
         </div>
-        
-        <div className="bg-white rounded-lg shadow-lg p-6">
-          <RSIGraph data={currentDisplayData} />
-        </div>
-        
+
         {currentDisplayData.length > 0 && (
           <div className="mt-8 grid grid-cols-1 md:grid-cols-3 gap-4">
             <div className="bg-white rounded-lg shadow p-4">
@@ -945,9 +986,8 @@ export default function Home() {
                   {transactions.map((tx, index) => (
                     <tr key={index}>
                       <td className="px-6 py-4 whitespace-nowrap">
-                        <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${
-                          tx.type === 'buy' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
-                        }`}>
+                        <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${tx.type === 'buy' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
+                          }`}>
                           {tx.type.toUpperCase()}
                         </span>
                       </td>
