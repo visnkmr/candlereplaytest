@@ -8,7 +8,6 @@ interface HistoricalData {
   data: Array<{
     timestamp: number;
     close: number;
-    percentage: number;
   }>;
 }
 
