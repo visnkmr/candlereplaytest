@@ -1,7 +1,7 @@
 "use client";
 
-import { useState, useMemo } from "react";
-import { YearlyComparisonChart } from "@/components/yearly-comparison-chart";
+import { useState, useEffect, useMemo } from "react";
+import { D3YearlyComparisonChart } from "@/components/d3-yearly-comparison-chart";
 
 interface HistoricalData {
   year: number;
@@ -111,8 +111,53 @@ export default function GoldBondsPage() {
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('asc');
   const [minDaysRemaining, setMinDaysRemaining] = useState<number>(0);
   const [layout, setLayout] = useState<'table' | 'cards'>('table');
+  const [useLocalData, setUseLocalData] = useState<boolean>(true);
+  const [isSelectorExpanded, setIsSelectorExpanded] = useState<boolean>(true);
 
   const currentDate = new Date();
+
+  // Load local gold bond data for testing
+  const loadLocalData = async () => {
+    try {
+      setIsLoading(true);
+      const cachedData = localStorage.getItem('goldBondData');
+      if (cachedData) {
+        const parsedData = JSON.parse(cachedData);
+        setHistoricalData(parsedData);
+        setError("");
+        setIsLoading(false);
+        return;
+      }
+
+      // Use hardcoded test data for SGBFEB27 2022
+      const results: HistoricalData[] = [{
+        year: 2022,
+        data: [
+          { timestamp: 1640995200, close: 4601.03 },
+          { timestamp: 1643673600, close: 4650 },
+          { timestamp: 1646092800, close: 4700 },
+          { timestamp: 1648771200, close: 4750 },
+          { timestamp: 1651363200, close: 4800 },
+          { timestamp: 1654041600, close: 4850 },
+          { timestamp: 1656633600, close: 4900 },
+          { timestamp: 1659312000, close: 4950 },
+          { timestamp: 1661990400, close: 5000 },
+          { timestamp: 1664582400, close: 5050 },
+          { timestamp: 1667260800, close: 5100 },
+          { timestamp: 1669852800, close: 5150 }
+        ]
+      }];
+
+      localStorage.setItem('goldBondData', JSON.stringify(results));
+      setHistoricalData(results);
+      setError("");
+    } catch (err) {
+      setError("Failed to load local test data.");
+      console.error("Error loading local data:", err);
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   const handleSort = (field: 'symbol' | 'price' | 'maturity') => {
     if (sortBy === field) {
@@ -122,6 +167,13 @@ export default function GoldBondsPage() {
       setSortOrder('asc');
     }
   };
+
+  // Load initial data
+  useEffect(() => {
+    if (useLocalData) {
+      loadLocalData();
+    }
+  }, [useLocalData]);
 
   const sortedBonds = useMemo(() => {
     return [...GOLD_BONDS]
@@ -189,165 +241,190 @@ export default function GoldBondsPage() {
   const handleBondClick = (symbol: string) => {
     setSelectedSymbol(symbol);
     fetchHistoricalData(symbol);
+    setIsSelectorExpanded(false);
   };
 
   return (
     <div className="min-h-screen bg-gray-50 p-8">
       <div className="max-w-7xl mx-auto">
-        <div className="mb-8">
-          <h1 className="text-3xl font-bold text-gray-900 mb-2">Sovereign Gold Bonds</h1>
-          <p className="text-gray-600">Click on a bond to view its yearly price comparison chart</p>
+        <div className="mb-8 flex justify-between items-center">
+          <div>
+            <h1 className="text-3xl font-bold text-gray-900 mb-2">Sovereign Gold Bonds</h1>
+            <p className="text-gray-600">Click on a bond to view its yearly price comparison chart</p>
+          </div>
+          {selectedSymbol && (
+            <button
+              onClick={() => setIsSelectorExpanded(!isSelectorExpanded)}
+              className="px-4 py-2 bg-white border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500"
+            >
+              {isSelectorExpanded ? 'Collapse Selector' : 'Select Another Bond'}
+            </button>
+          )}
         </div>
 
-        <div className="bg-white rounded-lg shadow-lg p-6 mb-6">
-          <div className="flex items-center gap-4 mb-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">Min Days Remaining</label>
-              <input
-                type="number"
-                value={minDaysRemaining}
-                onChange={(e) => setMinDaysRemaining(parseInt(e.target.value) || 0)}
-                placeholder="0"
-                className="px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-              />
+        {isSelectorExpanded && (
+          <div className="bg-white rounded-lg shadow-lg p-6 mb-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-4">
+              <div>
+                <label className="flex items-center gap-2">
+                  <input
+                    type="checkbox"
+                    checked={useLocalData}
+                    onChange={(e) => setUseLocalData(e.target.checked)}
+                    className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                  />
+                  <span className="text-sm font-medium text-gray-700">Use Local Test Data</span>
+                </label>
+                <p className="text-xs text-gray-500 mt-1">
+                  Uncheck to fetch live data from NSE API
+                </p>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Min Days Remaining</label>
+                <input
+                  type="number"
+                  value={minDaysRemaining}
+                  onChange={(e) => setMinDaysRemaining(parseInt(e.target.value) || 0)}
+                  placeholder="0"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Years to Compare</label>
+                <select
+                  value={yearsToCompare}
+                  onChange={(e) => setYearsToCompare(parseInt(e.target.value))}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                >
+                  <option value="1">Last 1 year</option>
+                  <option value="2">Last 2 years</option>
+                  <option value="3">Last 3 years</option>
+                  <option value="4">Last 4 years</option>
+                  <option value="5">Last 5 years</option>
+                </select>
+              </div>
+              <div className="flex items-end gap-2">
+                <label className="text-sm font-medium text-gray-700">Layout:</label>
+                <button
+                  onClick={() => setLayout('table')}
+                  className={`px-3 py-1 text-sm rounded ${layout === 'table' ? 'bg-blue-600 text-white' : 'bg-gray-200 text-gray-700'}`}
+                >
+                  Table
+                </button>
+                <button
+                  onClick={() => setLayout('cards')}
+                  className={`px-3 py-1 text-sm rounded ${layout === 'cards' ? 'bg-blue-600 text-white' : 'bg-gray-200 text-gray-700'}`}
+                >
+                  Cards
+                </button>
+              </div>
             </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">Years to Compare</label>
-              <select
-                value={yearsToCompare}
-                onChange={(e) => setYearsToCompare(parseInt(e.target.value))}
-                className="px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-              >
-                <option value="1">Last 1 year</option>
-                <option value="2">Last 2 years</option>
-                <option value="3">Last 3 years</option>
-                <option value="4">Last 4 years</option>
-                <option value="5">Last 5 years</option>
-              </select>
-            </div>
-            <div className="flex items-center gap-2">
-              <label className="text-sm font-medium text-gray-700">Layout:</label>
-              <button
-                onClick={() => setLayout('table')}
-                className={`px-3 py-1 text-sm rounded ${layout === 'table' ? 'bg-blue-600 text-white' : 'bg-gray-200 text-gray-700'}`}
-              >
-                Table
-              </button>
-              <button
-                onClick={() => setLayout('cards')}
-                className={`px-3 py-1 text-sm rounded ${layout === 'cards' ? 'bg-blue-600 text-white' : 'bg-gray-200 text-gray-700'}`}
-              >
-                Cards
-              </button>
-            </div>
-          </div>
 
-          {layout === 'table' ? (
-            <div className="overflow-x-auto">
-            <table className="min-w-full bg-white border border-gray-300">
-              <thead>
-                <tr className="bg-gray-100">
-                  <th
-                    className="px-4 py-2 text-left text-sm font-medium text-gray-700 border-b cursor-pointer hover:bg-gray-200"
-                    onClick={() => handleSort('symbol')}
-                  >
-                    Symbol {sortBy === 'symbol' && (sortOrder === 'asc' ? '↑' : '↓')}
-                  </th>
-                  <th
-                    className="px-4 py-2 text-left text-sm font-medium text-gray-700 border-b cursor-pointer hover:bg-gray-200"
-                    onClick={() => handleSort('price')}
-                  >
-                    Face Value {sortBy === 'price' && (sortOrder === 'asc' ? '↑' : '↓')}
-                  </th>
-                  <th className="px-4 py-2 text-left text-sm font-medium text-gray-700 border-b">Interest/Year</th>
-                  <th
-                    className="px-4 py-2 text-left text-sm font-medium text-gray-700 border-b cursor-pointer hover:bg-gray-200"
-                    onClick={() => handleSort('maturity')}
-                  >
-                    Maturity {sortBy === 'maturity' && (sortOrder === 'asc' ? '↑' : '↓')}
-                  </th>
-                  <th className="px-4 py-2 text-left text-sm font-medium text-gray-700 border-b">Tenure</th>
-                  <th className="px-4 py-2 text-center text-sm font-medium text-gray-700 border-b">Action</th>
-                </tr>
-              </thead>
-              <tbody>
+            {layout === 'table' ? (
+              <div className="overflow-x-auto">
+                <table className="min-w-full bg-white border border-gray-300">
+                  <thead>
+                    <tr className="bg-gray-100">
+                      <th
+                        className="px-4 py-2 text-left text-sm font-medium text-gray-700 border-b cursor-pointer hover:bg-gray-200"
+                        onClick={() => handleSort('symbol')}
+                      >
+                        Symbol {sortBy === 'symbol' && (sortOrder === 'asc' ? '↑' : '↓')}
+                      </th>
+                      <th
+                        className="px-4 py-2 text-left text-sm font-medium text-gray-700 border-b cursor-pointer hover:bg-gray-200"
+                        onClick={() => handleSort('price')}
+                      >
+                        Face Value {sortBy === 'price' && (sortOrder === 'asc' ? '↑' : '↓')}
+                      </th>
+                      <th className="px-4 py-2 text-left text-sm font-medium text-gray-700 border-b">Interest/Year</th>
+                      <th
+                        className="px-4 py-2 text-left text-sm font-medium text-gray-700 border-b cursor-pointer hover:bg-gray-200"
+                        onClick={() => handleSort('maturity')}
+                      >
+                        Maturity {sortBy === 'maturity' && (sortOrder === 'asc' ? '↑' : '↓')}
+                      </th>
+                      <th className="px-4 py-2 text-left text-sm font-medium text-gray-700 border-b">Tenure</th>
+                      <th className="px-4 py-2 text-center text-sm font-medium text-gray-700 border-b">Action</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {sortedBonds.map((bond) => {
+                      const interestPerYear = (bond.price * 0.025).toFixed(2);
+                      const remainingDays = Math.ceil((bond.maturityDate.getTime() - currentDate.getTime()) / (1000 * 60 * 60 * 24));
+                      const maturityStr = bond.maturityDate.toLocaleDateString('en-US', { month: 'short', year: 'numeric' });
+                      const tenureStr = remainingDays > 0 ? `${remainingDays} days` : 'Matured';
+                      return (
+                        <tr
+                          key={bond.symbol}
+                          className={`hover:bg-gray-50 ${selectedSymbol === bond.symbol ? 'bg-blue-50' : ''
+                            }`}
+                        >
+                          <td className="px-4 py-2 text-sm text-gray-900 border-b">{bond.symbol}</td>
+                          <td className="px-4 py-2 text-sm text-gray-900 border-b">₹{bond.price.toFixed(2)}</td>
+                          <td className="px-4 py-2 text-sm text-gray-900 border-b">₹{interestPerYear}</td>
+                          <td className="px-4 py-2 text-sm text-gray-900 border-b">{maturityStr}</td>
+                          <td className="px-4 py-2 text-sm text-gray-900 border-b">{tenureStr}</td>
+                          <td className="px-4 py-2 text-center border-b">
+                            <button
+                              onClick={() => handleBondClick(bond.symbol)}
+                              disabled={isLoading}
+                              className="px-3 py-1 bg-blue-600 text-white text-sm rounded hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed"
+                            >
+                              {isLoading ? 'Loading...' : 'Select'}
+                            </button>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                 {sortedBonds.map((bond) => {
                   const interestPerYear = (bond.price * 0.025).toFixed(2);
                   const remainingDays = Math.ceil((bond.maturityDate.getTime() - currentDate.getTime()) / (1000 * 60 * 60 * 24));
                   const maturityStr = bond.maturityDate.toLocaleDateString('en-US', { month: 'short', year: 'numeric' });
-                  const tenureStr = remainingDays > 0 ? `${remainingDays} days` : 'Matured';
+                  const tenureStr = remainingDays > 0 ? `${remainingDays} days remaining` : 'Matured';
                   return (
-                    <tr
+                    <button
                       key={bond.symbol}
-                      className={`hover:bg-gray-50 ${
-                        selectedSymbol === bond.symbol ? 'bg-blue-50' : ''
-                      }`}
-                    >
-                      <td className="px-4 py-2 text-sm text-gray-900 border-b">{bond.symbol}</td>
-                      <td className="px-4 py-2 text-sm text-gray-900 border-b">₹{bond.price.toFixed(2)}</td>
-                      <td className="px-4 py-2 text-sm text-gray-900 border-b">₹{interestPerYear}</td>
-                      <td className="px-4 py-2 text-sm text-gray-900 border-b">{maturityStr}</td>
-                      <td className="px-4 py-2 text-sm text-gray-900 border-b">{tenureStr}</td>
-                      <td className="px-4 py-2 text-center border-b">
-                        <button
-                          onClick={() => handleBondClick(bond.symbol)}
-                          disabled={isLoading}
-                          className="px-3 py-1 bg-blue-600 text-white text-sm rounded hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed"
-                        >
-                          {isLoading ? 'Loading...' : 'Select'}
-                        </button>
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-            </div>
-          ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              {sortedBonds.map((bond) => {
-                const interestPerYear = (bond.price * 0.025).toFixed(2);
-                const remainingDays = Math.ceil((bond.maturityDate.getTime() - currentDate.getTime()) / (1000 * 60 * 60 * 24));
-                const maturityStr = bond.maturityDate.toLocaleDateString('en-US', { month: 'short', year: 'numeric' });
-                const tenureStr = remainingDays > 0 ? `${remainingDays} days remaining` : 'Matured';
-                return (
-                  <button
-                    key={bond.symbol}
-                    onClick={() => handleBondClick(bond.symbol)}
-                    disabled={isLoading}
-                    className={`p-4 border rounded-lg text-left transition-colors ${
-                      selectedSymbol === bond.symbol
+                      onClick={() => handleBondClick(bond.symbol)}
+                      disabled={isLoading}
+                      className={`p-4 border rounded-lg text-left transition-colors ${selectedSymbol === bond.symbol
                         ? "bg-blue-100 border-blue-500 text-blue-700"
                         : "bg-gray-50 border-gray-300 hover:bg-gray-100 text-gray-700"
-                    } disabled:opacity-50 disabled:cursor-not-allowed`}
-                  >
-                    <div className="font-semibold">{bond.symbol}</div>
-                    <div className="text-sm">Face Value: ₹{bond.price.toFixed(2)}</div>
-                    <div className="text-sm">Interest/year: ₹{interestPerYear}</div>
-                    <div className="text-sm">Maturity: {maturityStr}</div>
-                    <div className="text-sm">Tenure: {tenureStr}</div>
-                  </button>
-                );
-              })}
-            </div>
-          )}
+                        } disabled:opacity-50 disabled:cursor-not-allowed`}
+                    >
+                      <div className="font-semibold">{bond.symbol}</div>
+                      <div className="text-sm">Face Value: ₹{bond.price.toFixed(2)}</div>
+                      <div className="text-sm">Interest/year: ₹{interestPerYear}</div>
+                      <div className="text-sm">Maturity: {maturityStr}</div>
+                      <div className="text-sm">Tenure: {tenureStr}</div>
+                    </button>
+                  );
+                })}
+              </div>
+            )}
 
-          {error && (
-            <div className="mt-4 p-2 bg-red-100 border border-red-400 text-red-700 rounded">
-              {error}
-            </div>
-          )}
+            {error && (
+              <div className="mt-4 p-2 bg-red-100 border border-red-400 text-red-700 rounded">
+                {error}
+              </div>
+            )}
 
-          {selectedSymbol && (
-            <div className="mt-4 text-sm text-gray-600">
-              <p><strong>Selected Bond:</strong> {selectedSymbol}</p>
-            </div>
-          )}
-        </div>
+            {selectedSymbol && (
+              <div className="mt-4 text-sm text-gray-600">
+                <p><strong>Selected Bond:</strong> {selectedSymbol}</p>
+              </div>
+            )}
+          </div>
+        )}
 
         {historicalData.length > 0 && (
           <div className="bg-white rounded-lg shadow-lg p-6">
-            <YearlyComparisonChart data={historicalData} />
+            <D3YearlyComparisonChart data={historicalData} symbol={selectedSymbol} />
           </div>
         )}
 
