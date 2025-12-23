@@ -110,8 +110,18 @@ export default function GoldBondsPage() {
   const [sortBy, setSortBy] = useState<'symbol' | 'price' | 'maturity'>('symbol');
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('asc');
   const [minDaysRemaining, setMinDaysRemaining] = useState<number>(0);
+  const [layout, setLayout] = useState<'table' | 'cards'>('table');
 
   const currentDate = new Date();
+
+  const handleSort = (field: 'symbol' | 'price' | 'maturity') => {
+    if (sortBy === field) {
+      setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc');
+    } else {
+      setSortBy(field);
+      setSortOrder('asc');
+    }
+  };
 
   const sortedBonds = useMemo(() => {
     return [...GOLD_BONDS]
@@ -190,30 +200,7 @@ export default function GoldBondsPage() {
         </div>
 
         <div className="bg-white rounded-lg shadow-lg p-6 mb-6">
-          <div className="grid grid-cols-1 md:grid-cols-5 gap-4 mb-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">Sort By</label>
-              <select
-                value={sortBy}
-                onChange={(e) => setSortBy(e.target.value as 'symbol' | 'price' | 'maturity')}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-              >
-                <option value="symbol">Symbol</option>
-                <option value="price">Face Value</option>
-                <option value="maturity">Maturity Date</option>
-              </select>
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">Order</label>
-              <select
-                value={sortOrder}
-                onChange={(e) => setSortOrder(e.target.value as 'asc' | 'desc')}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-              >
-                <option value="asc">Ascending</option>
-                <option value="desc">Descending</option>
-              </select>
-            </div>
+          <div className="flex items-center gap-4 mb-4">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">Min Days Remaining</label>
               <input
@@ -221,7 +208,7 @@ export default function GoldBondsPage() {
                 value={minDaysRemaining}
                 onChange={(e) => setMinDaysRemaining(parseInt(e.target.value) || 0)}
                 placeholder="0"
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                className="px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
               />
             </div>
             <div>
@@ -229,7 +216,7 @@ export default function GoldBondsPage() {
               <select
                 value={yearsToCompare}
                 onChange={(e) => setYearsToCompare(parseInt(e.target.value))}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                className="px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
               >
                 <option value="1">Last 1 year</option>
                 <option value="2">Last 2 years</option>
@@ -238,34 +225,112 @@ export default function GoldBondsPage() {
                 <option value="5">Last 5 years</option>
               </select>
             </div>
+            <div className="flex items-center gap-2">
+              <label className="text-sm font-medium text-gray-700">Layout:</label>
+              <button
+                onClick={() => setLayout('table')}
+                className={`px-3 py-1 text-sm rounded ${layout === 'table' ? 'bg-blue-600 text-white' : 'bg-gray-200 text-gray-700'}`}
+              >
+                Table
+              </button>
+              <button
+                onClick={() => setLayout('cards')}
+                className={`px-3 py-1 text-sm rounded ${layout === 'cards' ? 'bg-blue-600 text-white' : 'bg-gray-200 text-gray-700'}`}
+              >
+                Cards
+              </button>
+            </div>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {sortedBonds.map((bond) => {
-              const interestPerYear = (bond.price * 0.025).toFixed(2);
-              const remainingDays = Math.ceil((bond.maturityDate.getTime() - currentDate.getTime()) / (1000 * 60 * 60 * 24));
-              const maturityStr = bond.maturityDate.toLocaleDateString('en-US', { month: 'short', year: 'numeric' });
-              const tenureStr = remainingDays > 0 ? `${remainingDays} days remaining` : 'Matured';
-              return (
-                <button
-                  key={bond.symbol}
-                  onClick={() => handleBondClick(bond.symbol)}
-                  disabled={isLoading}
-                  className={`p-4 border rounded-lg text-left transition-colors ${
-                    selectedSymbol === bond.symbol
-                      ? "bg-blue-100 border-blue-500 text-blue-700"
-                      : "bg-gray-50 border-gray-300 hover:bg-gray-100 text-gray-700"
-                  } disabled:opacity-50 disabled:cursor-not-allowed`}
-                >
-                  <div className="font-semibold">{bond.symbol}</div>
-                  <div className="text-sm">Face Value: ₹{bond.price.toFixed(2)}</div>
-                  <div className="text-sm">Interest/year: ₹{interestPerYear}</div>
-                  <div className="text-sm">Maturity: {maturityStr}</div>
-                  <div className="text-sm">Tenure: {tenureStr}</div>
-                </button>
-              );
-            })}
-          </div>
+          {layout === 'table' ? (
+            <div className="overflow-x-auto">
+            <table className="min-w-full bg-white border border-gray-300">
+              <thead>
+                <tr className="bg-gray-100">
+                  <th
+                    className="px-4 py-2 text-left text-sm font-medium text-gray-700 border-b cursor-pointer hover:bg-gray-200"
+                    onClick={() => handleSort('symbol')}
+                  >
+                    Symbol {sortBy === 'symbol' && (sortOrder === 'asc' ? '↑' : '↓')}
+                  </th>
+                  <th
+                    className="px-4 py-2 text-left text-sm font-medium text-gray-700 border-b cursor-pointer hover:bg-gray-200"
+                    onClick={() => handleSort('price')}
+                  >
+                    Face Value {sortBy === 'price' && (sortOrder === 'asc' ? '↑' : '↓')}
+                  </th>
+                  <th className="px-4 py-2 text-left text-sm font-medium text-gray-700 border-b">Interest/Year</th>
+                  <th
+                    className="px-4 py-2 text-left text-sm font-medium text-gray-700 border-b cursor-pointer hover:bg-gray-200"
+                    onClick={() => handleSort('maturity')}
+                  >
+                    Maturity {sortBy === 'maturity' && (sortOrder === 'asc' ? '↑' : '↓')}
+                  </th>
+                  <th className="px-4 py-2 text-left text-sm font-medium text-gray-700 border-b">Tenure</th>
+                  <th className="px-4 py-2 text-center text-sm font-medium text-gray-700 border-b">Action</th>
+                </tr>
+              </thead>
+              <tbody>
+                {sortedBonds.map((bond) => {
+                  const interestPerYear = (bond.price * 0.025).toFixed(2);
+                  const remainingDays = Math.ceil((bond.maturityDate.getTime() - currentDate.getTime()) / (1000 * 60 * 60 * 24));
+                  const maturityStr = bond.maturityDate.toLocaleDateString('en-US', { month: 'short', year: 'numeric' });
+                  const tenureStr = remainingDays > 0 ? `${remainingDays} days` : 'Matured';
+                  return (
+                    <tr
+                      key={bond.symbol}
+                      className={`hover:bg-gray-50 ${
+                        selectedSymbol === bond.symbol ? 'bg-blue-50' : ''
+                      }`}
+                    >
+                      <td className="px-4 py-2 text-sm text-gray-900 border-b">{bond.symbol}</td>
+                      <td className="px-4 py-2 text-sm text-gray-900 border-b">₹{bond.price.toFixed(2)}</td>
+                      <td className="px-4 py-2 text-sm text-gray-900 border-b">₹{interestPerYear}</td>
+                      <td className="px-4 py-2 text-sm text-gray-900 border-b">{maturityStr}</td>
+                      <td className="px-4 py-2 text-sm text-gray-900 border-b">{tenureStr}</td>
+                      <td className="px-4 py-2 text-center border-b">
+                        <button
+                          onClick={() => handleBondClick(bond.symbol)}
+                          disabled={isLoading}
+                          className="px-3 py-1 bg-blue-600 text-white text-sm rounded hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed"
+                        >
+                          {isLoading ? 'Loading...' : 'Select'}
+                        </button>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {sortedBonds.map((bond) => {
+                const interestPerYear = (bond.price * 0.025).toFixed(2);
+                const remainingDays = Math.ceil((bond.maturityDate.getTime() - currentDate.getTime()) / (1000 * 60 * 60 * 24));
+                const maturityStr = bond.maturityDate.toLocaleDateString('en-US', { month: 'short', year: 'numeric' });
+                const tenureStr = remainingDays > 0 ? `${remainingDays} days remaining` : 'Matured';
+                return (
+                  <button
+                    key={bond.symbol}
+                    onClick={() => handleBondClick(bond.symbol)}
+                    disabled={isLoading}
+                    className={`p-4 border rounded-lg text-left transition-colors ${
+                      selectedSymbol === bond.symbol
+                        ? "bg-blue-100 border-blue-500 text-blue-700"
+                        : "bg-gray-50 border-gray-300 hover:bg-gray-100 text-gray-700"
+                    } disabled:opacity-50 disabled:cursor-not-allowed`}
+                  >
+                    <div className="font-semibold">{bond.symbol}</div>
+                    <div className="text-sm">Face Value: ₹{bond.price.toFixed(2)}</div>
+                    <div className="text-sm">Interest/year: ₹{interestPerYear}</div>
+                    <div className="text-sm">Maturity: {maturityStr}</div>
+                    <div className="text-sm">Tenure: {tenureStr}</div>
+                  </button>
+                );
+              })}
+            </div>
+          )}
 
           {error && (
             <div className="mt-4 p-2 bg-red-100 border border-red-400 text-red-700 rounded">
