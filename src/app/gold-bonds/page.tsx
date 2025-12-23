@@ -337,9 +337,10 @@ export default function GoldBondsPage() {
                   <button
                     key={bond.symbol}
                     onClick={() => handleBondClick(bond.symbol)}
-                    className={`px-4 py-2 rounded-xl text-xs font-black border-2 transition-all ${selectedSymbol === bond.symbol ? 'bg-blue-600 border-blue-600 text-white' : 'bg-gray-50 border-gray-100 text-gray-600 hover:border-blue-300 hover:bg-white hover:text-blue-600'}`}
+                    className={`px-4 py-2 rounded-xl text-xs font-black border-2 transition-all flex flex-col items-center ${selectedSymbol === bond.symbol ? 'bg-blue-600 border-blue-600 text-white' : 'bg-gray-50 border-gray-100 text-gray-600 hover:border-blue-300 hover:bg-white hover:text-blue-600'}`}
                   >
-                    {bond.symbol}
+                    <span>{bond.symbol}</span>
+                    <span className={`text-[9px] opacity-70`}>₹{(bond.price * 0.025).toFixed(0)}/yr</span>
                   </button>
                 ))}
               </div>
@@ -350,6 +351,7 @@ export default function GoldBondsPage() {
                     <tr>
                       <th className="px-6 py-4 text-left text-xs font-black text-gray-500 uppercase tracking-widest cursor-pointer hover:text-blue-600" onClick={() => handleSort('symbol')}>Symbol {sortBy === 'symbol' && (sortOrder === 'asc' ? '↑' : '↓')}</th>
                       <th className="px-6 py-4 text-left text-xs font-black text-gray-500 uppercase tracking-widest cursor-pointer hover:text-blue-600" onClick={() => handleSort('price')}>Face Value {sortBy === 'price' && (sortOrder === 'asc' ? '↑' : '↓')}</th>
+                      <th className="px-6 py-4 text-left text-xs font-black text-gray-500 uppercase tracking-widest">Interest/Yr</th>
                       <th className="px-6 py-4 text-left text-xs font-black text-gray-500 uppercase tracking-widest cursor-pointer hover:text-blue-600" onClick={() => handleSort('maturity')}>Maturity {sortBy === 'maturity' && (sortOrder === 'asc' ? '↑' : '↓')}</th>
                       <th className="px-6 py-4 text-right text-xs font-black text-gray-500 uppercase tracking-widest">Action</th>
                     </tr>
@@ -359,6 +361,7 @@ export default function GoldBondsPage() {
                       <tr key={bond.symbol} className={`hover:bg-blue-50/50 transition-colors ${selectedSymbol === bond.symbol ? 'bg-blue-50/70' : ''}`}>
                         <td className="px-6 py-4 whitespace-nowrap text-sm font-bold text-gray-900">{bond.symbol}</td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600 font-mono">₹{bond.price.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-emerald-600 font-bold">₹{(bond.price * 0.025).toLocaleString('en-IN', { minimumFractionDigits: 2 })}</td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">{bond.maturityDate.toLocaleDateString('en-IN', { month: 'short', year: 'numeric' })}</td>
                         <td className="px-6 py-4 whitespace-nowrap text-right">
                           <button onClick={() => handleBondClick(bond.symbol)} className={`px-4 py-2 rounded-xl text-xs font-black transition-all ${selectedSymbol === bond.symbol ? 'bg-blue-600 text-white shadow-lg shadow-blue-200' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}>Select Bond</button>
@@ -377,7 +380,10 @@ export default function GoldBondsPage() {
                     className={`p-5 border-2 rounded-2xl text-left transition-all group ${selectedSymbol === bond.symbol ? "bg-blue-600 border-blue-600 text-white shadow-xl shadow-blue-200" : "bg-white border-gray-100 hover:border-blue-200 hover:shadow-lg"}`}
                   >
                     <div className="font-black text-xl mb-1 tracking-tight">{bond.symbol}</div>
-                    <div className={`text-xs font-bold ${selectedSymbol === bond.symbol ? 'text-blue-100' : 'text-gray-400'}`}>Face Value: ₹{bond.price.toLocaleString('en-IN')}</div>
+                    <div className="flex justify-between items-center mb-1">
+                      <div className={`text-xs font-bold ${selectedSymbol === bond.symbol ? 'text-blue-100' : 'text-gray-400'}`}>Face Value: ₹{bond.price.toLocaleString('en-IN')}</div>
+                      <div className={`text-xs font-black ${selectedSymbol === bond.symbol ? 'text-white' : 'text-emerald-600'}`}>+ ₹{(bond.price * 0.025).toFixed(2)} Int.</div>
+                    </div>
                     <div className={`text-sm font-black mt-3 flex items-center gap-1 ${selectedSymbol === bond.symbol ? 'text-white' : 'text-blue-600'}`}>
                       <span className="opacity-50 text-[10px]">MATURES</span>
                       {bond.maturityDate.toLocaleDateString('en-IN', { month: 'short', year: 'numeric' })}
