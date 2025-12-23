@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useMemo } from "react";
-import { D3YearlyComparisonChart } from "@/components/d3-yearly-comparison-chart";
+import { D3YearlyComparisonChart, TooltipMode, YAxisMode } from "@/components/d3-yearly-comparison-chart";
 
 interface HistoricalData {
   year: number;
@@ -27,12 +27,10 @@ function parseMaturityDate(symbol: string): Date {
   let month = 0;
   let yearStr = '';
 
-  // Find month abbr
   for (const [abbr, m] of Object.entries(monthMap)) {
     if (afterSGB.startsWith(abbr)) {
       month = m;
       const rest = afterSGB.slice(abbr.length);
-      // Find 2 digits for year
       const match = rest.match(/\d{2}/);
       if (match) {
         yearStr = match[0];
@@ -42,7 +40,7 @@ function parseMaturityDate(symbol: string): Date {
   }
 
   const year = parseInt('20' + yearStr);
-  return new Date(year, month - 1, 1); // Maturity at start of month
+  return new Date(year, month - 1, 1);
 }
 
 const rawBonds = [
@@ -101,6 +99,12 @@ const GOLD_BONDS: Bond[] = rawBonds.map(bond => ({
   maturityDate: parseMaturityDate(bond.symbol)
 }));
 
+const TOOLTIP_OPTIONS: { mode: TooltipMode; label: string }[] = [
+  { mode: 'synced', label: 'Synced (Full)' },
+  { mode: 'synced-minimal', label: 'Synced (Clean)' },
+  { mode: 'simple', label: 'Single Year' }
+];
+
 export default function GoldBondsPage() {
   const [selectedSymbol, setSelectedSymbol] = useState<string>("");
   const [historicalData, setHistoricalData] = useState<HistoricalData[]>([]);
@@ -110,70 +114,45 @@ export default function GoldBondsPage() {
   const [sortBy, setSortBy] = useState<'symbol' | 'price' | 'maturity'>('symbol');
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('asc');
   const [minDaysRemaining, setMinDaysRemaining] = useState<number>(0);
-  const [layout, setLayout] = useState<'table' | 'cards'>('table');
+  const [layout, setLayout] = useState<'table' | 'cards' | 'minimal'>('table');
   const [useLocalData, setUseLocalData] = useState<boolean>(true);
   const [isSelectorExpanded, setIsSelectorExpanded] = useState<boolean>(true);
+  const [tooltipMode, setTooltipMode] = useState<TooltipMode>('synced');
+  const [showGrid, setShowGrid] = useState<boolean>(true);
+  const [yAxisMode, setYAxisMode] = useState<YAxisMode>('percentage');
 
   const currentDate = new Date();
 
-  // Load local gold bond data for testing
-  const loadLocalData = async () => {
-    try {
-      setIsLoading(true);
-      const cachedData = localStorage.getItem('goldBondData');
-      if (cachedData) {
-        const parsedData = JSON.parse(cachedData);
-        setHistoricalData(parsedData);
-        setError("");
-        setIsLoading(false);
-        return;
-      }
-
-      // Use hardcoded test data for SGBFEB27 2022
-      const results: HistoricalData[] = [{
-        year: 2022,
-        data: [
-          { timestamp: 1640995200, close: 4601.03 },
-          { timestamp: 1643673600, close: 4650 },
-          { timestamp: 1646092800, close: 4700 },
-          { timestamp: 1648771200, close: 4750 },
-          { timestamp: 1651363200, close: 4800 },
-          { timestamp: 1654041600, close: 4850 },
-          { timestamp: 1656633600, close: 4900 },
-          { timestamp: 1659312000, close: 4950 },
-          { timestamp: 1661990400, close: 5000 },
-          { timestamp: 1664582400, close: 5050 },
-          { timestamp: 1667260800, close: 5100 },
-          { timestamp: 1669852800, close: 5150 }
-        ]
-      }];
-
-      localStorage.setItem('goldBondData', JSON.stringify(results));
-      setHistoricalData(results);
-      setError("");
-    } catch (err) {
-      setError("Failed to load local test data.");
-      console.error("Error loading local data:", err);
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  const handleSort = (field: 'symbol' | 'price' | 'maturity') => {
-    if (sortBy === field) {
-      setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc');
-    } else {
-      setSortBy(field);
-      setSortOrder('asc');
-    }
-  };
-
-  // Load initial data
+  // Load persistence from localStorage
   useEffect(() => {
-    if (useLocalData) {
-      loadLocalData();
+    const savedSymbol = localStorage.getItem('lastSelectedBond');
+    const savedData = localStorage.getItem('lastHistoricalData');
+    const savedLayout = localStorage.getItem('lastLayout') as 'table' | 'cards' | 'minimal' | null;
+    const savedTooltipMode = localStorage.getItem('tooltipMode') as TooltipMode | null;
+    const savedShowGrid = localStorage.getItem('showGrid');
+    const savedYAxisMode = localStorage.getItem('yAxisMode') as YAxisMode | null;
+
+    if (savedSymbol) setSelectedSymbol(savedSymbol);
+    if (savedData) setHistoricalData(JSON.parse(savedData));
+    if (savedLayout) setLayout(savedLayout);
+    if (savedTooltipMode) setTooltipMode(savedTooltipMode);
+    if (savedShowGrid !== null) setShowGrid(savedShowGrid === 'true');
+    if (savedYAxisMode) setYAxisMode(savedYAxisMode);
+
+    if (savedSymbol && savedData && savedLayout !== 'minimal') {
+      setIsSelectorExpanded(false);
     }
-  }, [useLocalData]);
+  }, []);
+
+  // Save persistence to localStorage
+  useEffect(() => {
+    if (selectedSymbol) localStorage.setItem('lastSelectedBond', selectedSymbol);
+    if (historicalData.length > 0) localStorage.setItem('lastHistoricalData', JSON.stringify(historicalData));
+    localStorage.setItem('lastLayout', layout);
+    localStorage.setItem('tooltipMode', tooltipMode);
+    localStorage.setItem('showGrid', String(showGrid));
+    localStorage.setItem('yAxisMode', yAxisMode);
+  }, [selectedSymbol, historicalData, layout, tooltipMode, showGrid, yAxisMode]);
 
   const sortedBonds = useMemo(() => {
     return [...GOLD_BONDS]
@@ -198,6 +177,15 @@ export default function GoldBondsPage() {
       });
   }, [sortBy, sortOrder, minDaysRemaining]);
 
+  const handleSort = (field: 'symbol' | 'price' | 'maturity') => {
+    if (sortBy === field) {
+      setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc');
+    } else {
+      setSortBy(field);
+      setSortOrder('asc');
+    }
+  };
+
   const currentYear = new Date().getFullYear();
 
   const fetchHistoricalData = async (symbol: string) => {
@@ -206,7 +194,6 @@ export default function GoldBondsPage() {
 
     try {
       const results: HistoricalData[] = [];
-
       for (let i = 0; i <= yearsToCompare; i++) {
         const year = currentYear - i;
         const fromDate = `01-01-${year}`;
@@ -214,25 +201,20 @@ export default function GoldBondsPage() {
 
         const apiUrl = `/api/nse-gold-bonds?symbol=${symbol}&fromDate=${fromDate}&toDate=${toDate}`;
         const response = await fetch(apiUrl);
-
-        if (!response.ok) {
-          throw new Error(`Failed to fetch data for ${year}`);
-        }
+        if (!response.ok) throw new Error(`Failed to fetch for ${year}`);
 
         const data = await response.json();
-
         if (data.data && data.data.length > 0) {
           results.push({
             year,
-            data: data.data.sort((a: { timestamp: number }, b: { timestamp: number }) => a.timestamp - b.timestamp)
+            data: data.data.sort((a: any, b: any) => a.timestamp - b.timestamp)
           });
         }
       }
-
       setHistoricalData(results);
     } catch (err) {
-      setError("Failed to fetch historical data. Please try again.");
-      console.error("Error fetching data:", err);
+      setError("Failed to fetch historical data.");
+      console.error(err);
     } finally {
       setIsLoading(false);
     }
@@ -241,198 +223,185 @@ export default function GoldBondsPage() {
   const handleBondClick = (symbol: string) => {
     setSelectedSymbol(symbol);
     fetchHistoricalData(symbol);
-    setIsSelectorExpanded(false);
+    if (layout !== 'minimal') {
+      setIsSelectorExpanded(false);
+    }
+  };
+
+  const cycleTooltip = () => {
+    const currentIndex = TOOLTIP_OPTIONS.findIndex(opt => opt.mode === tooltipMode);
+    const nextIndex = (currentIndex + 1) % TOOLTIP_OPTIONS.length;
+    setTooltipMode(TOOLTIP_OPTIONS[nextIndex].mode);
   };
 
   return (
     <div className="min-h-screen bg-gray-50 p-8">
       <div className="max-w-7xl mx-auto">
-        <div className="mb-8 flex justify-between items-center">
+        <div className="mb-8 flex justify-between items-end gap-4 text-slate-900">
           <div>
-            <h1 className="text-3xl font-bold text-gray-900 mb-2">Sovereign Gold Bonds</h1>
-            <p className="text-gray-600">Click on a bond to view its yearly price comparison chart</p>
+            <h1 className="text-3xl font-black mb-1 font-serif tracking-tight">Sovereign Gold Bonds</h1>
+            <p className="text-gray-500 text-sm font-medium">Historical performance and maturity analysis</p>
           </div>
-          {selectedSymbol && (
-            <button
-              onClick={() => setIsSelectorExpanded(!isSelectorExpanded)}
-              className="px-4 py-2 bg-white border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500"
-            >
-              {isSelectorExpanded ? 'Collapse Selector' : 'Select Another Bond'}
-            </button>
-          )}
+
+          <div className="flex items-center gap-3">
+            <div className="flex bg-white rounded-xl p-1 border border-gray-200 shadow-sm gap-1">
+              <button
+                onClick={cycleTooltip}
+                className="px-3 py-2 text-xs font-black rounded-lg bg-slate-50 text-slate-700 hover:bg-slate-100 transition-all border border-slate-200"
+              >
+                Tooltip: {TOOLTIP_OPTIONS.find(opt => opt.mode === tooltipMode)?.label.split(' ')[1] || 'Sync'}
+              </button>
+
+              <button
+                onClick={() => setShowGrid(!showGrid)}
+                className={`px-3 py-2 text-xs font-black rounded-lg transition-all border ${showGrid ? 'bg-blue-600 border-blue-600 text-white' : 'bg-slate-50 border-slate-200 text-slate-700'}`}
+              >
+                Grid: {showGrid ? 'On' : 'Off'}
+              </button>
+
+              <button
+                onClick={() => setYAxisMode(yAxisMode === 'percentage' ? 'price' : 'percentage')}
+                className="px-3 py-2 text-xs font-black rounded-lg bg-slate-50 text-slate-700 hover:bg-slate-100 transition-all border border-slate-200"
+              >
+                Axis: {yAxisMode === 'percentage' ? '%' : '₹'}
+              </button>
+            </div>
+
+            {selectedSymbol && (
+              <button
+                onClick={() => setIsSelectorExpanded(!isSelectorExpanded)}
+                className="px-4 py-2 bg-white border border-gray-300 rounded-xl shadow-sm text-sm font-black text-gray-700 hover:bg-gray-50 transition-colors"
+              >
+                {isSelectorExpanded ? 'Hide Selection' : 'Change Bond'}
+              </button>
+            )}
+          </div>
         </div>
 
         {isSelectorExpanded && (
-          <div className="bg-white rounded-lg shadow-lg p-6 mb-6">
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-4">
-              <div>
-                <label className="flex items-center gap-2">
+          <div className="bg-white rounded-2xl shadow-xl border border-gray-100 p-6 mb-8 animate-in fade-in slide-in-from-top-4 duration-500">
+            <div className="flex flex-wrap items-center justify-between gap-6 mb-8 border-b border-gray-100 pb-6">
+              <div className="flex flex-wrap gap-6">
+                <div className="flex items-center gap-2 bg-gray-50 px-3 py-1.5 rounded-lg border border-gray-100">
                   <input
                     type="checkbox"
+                    id="localData"
                     checked={useLocalData}
                     onChange={(e) => setUseLocalData(e.target.checked)}
-                    className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                    className="w-4 h-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
                   />
-                  <span className="text-sm font-medium text-gray-700">Use Local Test Data</span>
-                </label>
-                <p className="text-xs text-gray-500 mt-1">
-                  Uncheck to fetch live data from NSE API
-                </p>
+                  <label htmlFor="localData" className="text-sm font-black text-gray-700 cursor-pointer">Local Debug</label>
+                </div>
+
+                <div className="flex items-center gap-3">
+                  <span className="text-sm font-black text-gray-700">Min Days:</span>
+                  <input
+                    type="number"
+                    value={minDaysRemaining}
+                    onChange={(e) => setMinDaysRemaining(parseInt(e.target.value) || 0)}
+                    className="w-20 px-3 py-1.5 bg-gray-50 border border-gray-200 rounded-lg text-sm font-bold focus:ring-2 focus:ring-blue-500 outline-none"
+                  />
+                </div>
+
+                <div className="flex items-center gap-3">
+                  <span className="text-sm font-black text-gray-700">Compare:</span>
+                  <select
+                    value={yearsToCompare}
+                    onChange={(e) => setYearsToCompare(parseInt(e.target.value))}
+                    className="px-3 py-1.5 bg-gray-50 border border-gray-200 rounded-lg text-sm font-bold focus:ring-2 focus:ring-blue-500 outline-none"
+                  >
+                    {[1, 2, 3, 4, 5].map(y => <option key={y} value={y}>{y} Years</option>)}
+                  </select>
+                </div>
               </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Min Days Remaining</label>
-                <input
-                  type="number"
-                  value={minDaysRemaining}
-                  onChange={(e) => setMinDaysRemaining(parseInt(e.target.value) || 0)}
-                  placeholder="0"
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Years to Compare</label>
-                <select
-                  value={yearsToCompare}
-                  onChange={(e) => setYearsToCompare(parseInt(e.target.value))}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                >
-                  <option value="1">Last 1 year</option>
-                  <option value="2">Last 2 years</option>
-                  <option value="3">Last 3 years</option>
-                  <option value="4">Last 4 years</option>
-                  <option value="5">Last 5 years</option>
-                </select>
-              </div>
-              <div className="flex items-end gap-2">
-                <label className="text-sm font-medium text-gray-700">Layout:</label>
-                <button
-                  onClick={() => setLayout('table')}
-                  className={`px-3 py-1 text-sm rounded ${layout === 'table' ? 'bg-blue-600 text-white' : 'bg-gray-200 text-gray-700'}`}
-                >
-                  Table
-                </button>
-                <button
-                  onClick={() => setLayout('cards')}
-                  className={`px-3 py-1 text-sm rounded ${layout === 'cards' ? 'bg-blue-600 text-white' : 'bg-gray-200 text-gray-700'}`}
-                >
-                  Cards
-                </button>
+
+              <div className="flex bg-gray-100 p-1 rounded-xl">
+                {(['minimal', 'table', 'cards'] as const).map(l => (
+                  <button
+                    key={l}
+                    onClick={() => {
+                      setLayout(l);
+                      if (l === 'minimal') setIsSelectorExpanded(true);
+                    }}
+                    className={`px-4 py-1.5 text-xs font-black rounded-lg capitalize transition-all ${layout === l ? 'bg-white shadow-sm text-blue-600' : 'text-gray-500 hover:text-gray-700'}`}
+                  >
+                    {l}
+                  </button>
+                ))}
               </div>
             </div>
 
-            {layout === 'table' ? (
-              <div className="overflow-x-auto">
-                <table className="min-w-full bg-white border border-gray-300">
-                  <thead>
-                    <tr className="bg-gray-100">
-                      <th
-                        className="px-4 py-2 text-left text-sm font-medium text-gray-700 border-b cursor-pointer hover:bg-gray-200"
-                        onClick={() => handleSort('symbol')}
-                      >
-                        Symbol {sortBy === 'symbol' && (sortOrder === 'asc' ? '↑' : '↓')}
-                      </th>
-                      <th
-                        className="px-4 py-2 text-left text-sm font-medium text-gray-700 border-b cursor-pointer hover:bg-gray-200"
-                        onClick={() => handleSort('price')}
-                      >
-                        Face Value {sortBy === 'price' && (sortOrder === 'asc' ? '↑' : '↓')}
-                      </th>
-                      <th className="px-4 py-2 text-left text-sm font-medium text-gray-700 border-b">Interest/Year</th>
-                      <th
-                        className="px-4 py-2 text-left text-sm font-medium text-gray-700 border-b cursor-pointer hover:bg-gray-200"
-                        onClick={() => handleSort('maturity')}
-                      >
-                        Maturity {sortBy === 'maturity' && (sortOrder === 'asc' ? '↑' : '↓')}
-                      </th>
-                      <th className="px-4 py-2 text-left text-sm font-medium text-gray-700 border-b">Tenure</th>
-                      <th className="px-4 py-2 text-center text-sm font-medium text-gray-700 border-b">Action</th>
+            {layout === 'minimal' ? (
+              <div className="flex flex-wrap gap-2 overflow-y-auto max-h-[300px]">
+                {sortedBonds.map(bond => (
+                  <button
+                    key={bond.symbol}
+                    onClick={() => handleBondClick(bond.symbol)}
+                    className={`px-4 py-2 rounded-xl text-xs font-black border-2 transition-all ${selectedSymbol === bond.symbol ? 'bg-blue-600 border-blue-600 text-white' : 'bg-gray-50 border-gray-100 text-gray-600 hover:border-blue-300 hover:bg-white hover:text-blue-600'}`}
+                  >
+                    {bond.symbol}
+                  </button>
+                ))}
+              </div>
+            ) : layout === 'table' ? (
+              <div className="overflow-x-auto rounded-xl border border-gray-200">
+                <table className="min-w-full divide-y divide-gray-200 font-sans">
+                  <thead className="bg-gray-50">
+                    <tr>
+                      <th className="px-6 py-4 text-left text-xs font-black text-gray-500 uppercase tracking-widest cursor-pointer hover:text-blue-600" onClick={() => handleSort('symbol')}>Symbol {sortBy === 'symbol' && (sortOrder === 'asc' ? '↑' : '↓')}</th>
+                      <th className="px-6 py-4 text-left text-xs font-black text-gray-500 uppercase tracking-widest cursor-pointer hover:text-blue-600" onClick={() => handleSort('price')}>Face Value {sortBy === 'price' && (sortOrder === 'asc' ? '↑' : '↓')}</th>
+                      <th className="px-6 py-4 text-left text-xs font-black text-gray-500 uppercase tracking-widest cursor-pointer hover:text-blue-600" onClick={() => handleSort('maturity')}>Maturity {sortBy === 'maturity' && (sortOrder === 'asc' ? '↑' : '↓')}</th>
+                      <th className="px-6 py-4 text-right text-xs font-black text-gray-500 uppercase tracking-widest">Action</th>
                     </tr>
                   </thead>
-                  <tbody>
-                    {sortedBonds.map((bond) => {
-                      const interestPerYear = (bond.price * 0.025).toFixed(2);
-                      const remainingDays = Math.ceil((bond.maturityDate.getTime() - currentDate.getTime()) / (1000 * 60 * 60 * 24));
-                      const maturityStr = bond.maturityDate.toLocaleDateString('en-US', { month: 'short', year: 'numeric' });
-                      const tenureStr = remainingDays > 0 ? `${remainingDays} days` : 'Matured';
-                      return (
-                        <tr
-                          key={bond.symbol}
-                          className={`hover:bg-gray-50 ${selectedSymbol === bond.symbol ? 'bg-blue-50' : ''
-                            }`}
-                        >
-                          <td className="px-4 py-2 text-sm text-gray-900 border-b">{bond.symbol}</td>
-                          <td className="px-4 py-2 text-sm text-gray-900 border-b">₹{bond.price.toFixed(2)}</td>
-                          <td className="px-4 py-2 text-sm text-gray-900 border-b">₹{interestPerYear}</td>
-                          <td className="px-4 py-2 text-sm text-gray-900 border-b">{maturityStr}</td>
-                          <td className="px-4 py-2 text-sm text-gray-900 border-b">{tenureStr}</td>
-                          <td className="px-4 py-2 text-center border-b">
-                            <button
-                              onClick={() => handleBondClick(bond.symbol)}
-                              disabled={isLoading}
-                              className="px-3 py-1 bg-blue-600 text-white text-sm rounded hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed"
-                            >
-                              {isLoading ? 'Loading...' : 'Select'}
-                            </button>
-                          </td>
-                        </tr>
-                      );
-                    })}
+                  <tbody className="bg-white divide-y divide-gray-100">
+                    {sortedBonds.map((bond) => (
+                      <tr key={bond.symbol} className={`hover:bg-blue-50/50 transition-colors ${selectedSymbol === bond.symbol ? 'bg-blue-50/70' : ''}`}>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm font-bold text-gray-900">{bond.symbol}</td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600 font-mono">₹{bond.price.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">{bond.maturityDate.toLocaleDateString('en-IN', { month: 'short', year: 'numeric' })}</td>
+                        <td className="px-6 py-4 whitespace-nowrap text-right">
+                          <button onClick={() => handleBondClick(bond.symbol)} className={`px-4 py-2 rounded-xl text-xs font-black transition-all ${selectedSymbol === bond.symbol ? 'bg-blue-600 text-white shadow-lg shadow-blue-200' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}>Select Bond</button>
+                        </td>
+                      </tr>
+                    ))}
                   </tbody>
                 </table>
               </div>
             ) : (
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                {sortedBonds.map((bond) => {
-                  const interestPerYear = (bond.price * 0.025).toFixed(2);
-                  const remainingDays = Math.ceil((bond.maturityDate.getTime() - currentDate.getTime()) / (1000 * 60 * 60 * 24));
-                  const maturityStr = bond.maturityDate.toLocaleDateString('en-US', { month: 'short', year: 'numeric' });
-                  const tenureStr = remainingDays > 0 ? `${remainingDays} days remaining` : 'Matured';
-                  return (
-                    <button
-                      key={bond.symbol}
-                      onClick={() => handleBondClick(bond.symbol)}
-                      disabled={isLoading}
-                      className={`p-4 border rounded-lg text-left transition-colors ${selectedSymbol === bond.symbol
-                        ? "bg-blue-100 border-blue-500 text-blue-700"
-                        : "bg-gray-50 border-gray-300 hover:bg-gray-100 text-gray-700"
-                        } disabled:opacity-50 disabled:cursor-not-allowed`}
-                    >
-                      <div className="font-semibold">{bond.symbol}</div>
-                      <div className="text-sm">Face Value: ₹{bond.price.toFixed(2)}</div>
-                      <div className="text-sm">Interest/year: ₹{interestPerYear}</div>
-                      <div className="text-sm">Maturity: {maturityStr}</div>
-                      <div className="text-sm">Tenure: {tenureStr}</div>
-                    </button>
-                  );
-                })}
-              </div>
-            )}
-
-            {error && (
-              <div className="mt-4 p-2 bg-red-100 border border-red-400 text-red-700 rounded">
-                {error}
-              </div>
-            )}
-
-            {selectedSymbol && (
-              <div className="mt-4 text-sm text-gray-600">
-                <p><strong>Selected Bond:</strong> {selectedSymbol}</p>
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+                {sortedBonds.map((bond) => (
+                  <button
+                    key={bond.symbol}
+                    onClick={() => handleBondClick(bond.symbol)}
+                    className={`p-5 border-2 rounded-2xl text-left transition-all group ${selectedSymbol === bond.symbol ? "bg-blue-600 border-blue-600 text-white shadow-xl shadow-blue-200" : "bg-white border-gray-100 hover:border-blue-200 hover:shadow-lg"}`}
+                  >
+                    <div className="font-black text-xl mb-1 tracking-tight">{bond.symbol}</div>
+                    <div className={`text-xs font-bold ${selectedSymbol === bond.symbol ? 'text-blue-100' : 'text-gray-400'}`}>Face Value: ₹{bond.price.toLocaleString('en-IN')}</div>
+                    <div className={`text-sm font-black mt-3 flex items-center gap-1 ${selectedSymbol === bond.symbol ? 'text-white' : 'text-blue-600'}`}>
+                      <span className="opacity-50 text-[10px]">MATURES</span>
+                      {bond.maturityDate.toLocaleDateString('en-IN', { month: 'short', year: 'numeric' })}
+                    </div>
+                  </button>
+                ))}
               </div>
             )}
           </div>
         )}
 
         {historicalData.length > 0 && (
-          <div className="bg-white rounded-lg shadow-lg p-6">
-            <D3YearlyComparisonChart data={historicalData} symbol={selectedSymbol} />
+          <div className="bg-white rounded-3xl shadow-2xl border border-gray-100 p-8">
+            <D3YearlyComparisonChart
+              data={historicalData}
+              symbol={selectedSymbol}
+              tooltipMode={tooltipMode}
+              showGrid={showGrid}
+              yAxisMode={yAxisMode}
+            />
           </div>
         )}
 
-        {selectedSymbol && historicalData.length === 0 && !isLoading && !error && (
-          <div className="bg-white rounded-lg shadow-lg p-6 text-center text-gray-500">
-            No data available for {selectedSymbol}
-          </div>
-        )}
+        {error && <div className="mt-8 p-6 bg-red-50 border-2 border-red-100 text-red-600 rounded-2xl text-sm font-black text-center shadow-sm">{error}</div>}
       </div>
     </div>
   );
